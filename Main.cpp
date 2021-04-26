@@ -69,7 +69,6 @@ int main(int argc, char* argv[])
   print("Right State: %e %e %e (MaterialID: %d).\n",Vp[0],Vp[1],Vp[4],idp);
 
 
-
   if(argc==5) {//plot p-u relation
     double pmin = atof(argv[2]);
     double pmax = atof(argv[3]);
