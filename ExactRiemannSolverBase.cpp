@@ -12,6 +12,7 @@ using std::pair;
 using std::cout;
 using std::endl;
 
+#define PRINT_RIEMANN_SOLUTION 1
 //-----------------------------------------------------
 
 ExactRiemannSolverBase::ExactRiemannSolverBase(std::vector<VarFcnBase*> &vf_, 
@@ -469,14 +470,15 @@ ExactRiemannSolverBase::FindInitialInterval(double rhol, double ul, double pl, d
       return true;
 
     // find a physical p2 that has the opposite sign
-    if(f0 != f1) {
+    if(fabs(f0-f1)>1e-9) {
       p2 = p1 - f1*(p1-p0)/(f1-f0); //the Secant method
       if(p2<p0)
         p2 -= 0.1*(p1-p0);
       else //p2 cannot be between p0 and p1, so p2>p1
         p2 += 0.1*(p1-p0);
     } else {//f0 == f1
-      p2 = p1 + 0.1*(p1-p0); 
+      p2 = 1.1*p1; 
+      //p2 = p1 + *(p1-p0); 
     }
 
     success = ComputeRhoUStar(1, rhol, ul, pl, p2, idl, rhol0, rhol1, rhol2, ul2);
