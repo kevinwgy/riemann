@@ -70,9 +70,28 @@ public:
   virtual double GetBigGamma(double rho, double e) const{
     print_error("*** Error:  GetBigGamma Function not defined\n");
     exit_mpi(); return 0.0;}
-
+  
+  //checks that the Euler equations are still hyperbolic
+  virtual bool CheckState(double rho, double p) const{
+    if(rho <= 0.0) {
+      if(verbose)
+        fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
+      return true;
+    }
+    double e = GetInternalEnergyPerUnitMass(rho,p);
+    double c2 = GetDpdrho(rho, e) + p/rho*GetBigGamma(rho, e);
+    if(c2<=0){
+      if(verbose)
+        fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
+      return true;
+    }
+    return false;
+  }
+ 
   //checks that the Euler equations are still hyperbolic
   virtual bool CheckState(double *V) const{
+    return CheckState(V[0], V[4]);
+/*
     double e = GetInternalEnergyPerUnitMass(V[0],V[4]);
     double c2 = GetDpdrho(V[0], e) + V[4]/V[0]*GetBigGamma(V[0], e);
     if(V[0] <=0.0 || c2<=0){
@@ -81,6 +100,7 @@ public:
       return true;
     }
     return false;
+*/
   }
 
  

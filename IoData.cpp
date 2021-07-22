@@ -589,7 +589,7 @@ ExactRiemannSolverData::ExactRiemannSolverData()
   tol_main = 1.0e-5;
   tol_shock = 1.0e-5;
   tol_rarefaction = 1.0e-5;
-  min_pressure = -1.0e9;
+  min_pressure = -1.0e8;
   failure_threshold = 0.2;
   pressure_at_failure = 1.0e-8;
 }
