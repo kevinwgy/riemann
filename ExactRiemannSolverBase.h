@@ -15,7 +15,7 @@ protected:
 
   int maxIts_main, maxIts_shock;
   int numSteps_rarefaction;
-  double tol_main, tol_shock, tol_rarefaction;
+  double tol_main, tol_shock, tol_rarefaction, min_pressure, failure_threshold, pressure_at_failure;
 
 public:
   ExactRiemannSolverBase(std::vector<VarFcnBase*> &vf_, ExactRiemannSolverData &iod_riemann);

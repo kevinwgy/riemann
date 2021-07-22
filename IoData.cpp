@@ -589,6 +589,9 @@ ExactRiemannSolverData::ExactRiemannSolverData()
   tol_main = 1.0e-5;
   tol_shock = 1.0e-5;
   tol_rarefaction = 1.0e-5;
+  min_pressure = -1.0e9;
+  failure_threshold = 0.2;
+  pressure_at_failure = 1.0e-8;
 }
 
 //------------------------------------------------------------------------------
@@ -596,7 +599,7 @@ ExactRiemannSolverData::ExactRiemannSolverData()
 void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 6, father);
+  ClassAssigner *ca = new ClassAssigner(name, 8, father);
 
   new ClassInt<ExactRiemannSolverData>(ca, "MaxIts", this, 
                                        &ExactRiemannSolverData::maxIts_main);
@@ -615,6 +618,16 @@ void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
 
   new ClassDouble<ExactRiemannSolverData>(ca, "ToleranceRarefaction", this, 
                                           &ExactRiemannSolverData::tol_rarefaction);
+
+  new ClassDouble<ExactRiemannSolverData>(ca, "MinPressure", this, 
+                                          &ExactRiemannSolverData::min_pressure);
+
+  new ClassDouble<ExactRiemannSolverData>(ca, "FailureThreshold", this, 
+                                          &ExactRiemannSolverData::failure_threshold);
+
+  new ClassDouble<ExactRiemannSolverData>(ca, "PrescribedPressureUponFailure", this, 
+                                          &ExactRiemannSolverData::pressure_at_failure);
+
 }
 
 //------------------------------------------------------------------------------

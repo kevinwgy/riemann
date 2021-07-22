@@ -3,6 +3,7 @@
 #include <IoData.h>
 #include <VarFcnSG.h>
 #include <VarFcnMG.h>
+#include <VarFcnJWL.h>
 #include <ExactRiemannSolverBase.h>
 #include <set>
 using std::cout;
@@ -40,6 +41,8 @@ int main(int argc, char* argv[])
       vf[matid] = new VarFcnSG(*it->second, iod.output.verbose);
     else if(it->second->eos == MaterialModelData::MIE_GRUNEISEN)
       vf[matid] = new VarFcnMG(*it->second, iod.output.verbose);
+    else if(it->second->eos == MaterialModelData::JWL)
+      vf[matid] = new VarFcnJWL(*it->second, iod.output.verbose);
     else {
       print_error("Error: Unable to initialize variable functions (VarFcn) for the specified material model.\n");
       exit_mpi();
