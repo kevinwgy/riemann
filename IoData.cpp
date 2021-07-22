@@ -599,7 +599,7 @@ ExactRiemannSolverData::ExactRiemannSolverData()
 void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 8, father);
+  ClassAssigner *ca = new ClassAssigner(name, 9, father);
 
   new ClassInt<ExactRiemannSolverData>(ca, "MaxIts", this, 
                                        &ExactRiemannSolverData::maxIts_main);
