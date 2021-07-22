@@ -12,7 +12,6 @@ using std::pair;
 using std::cout;
 using std::endl;
 
-#define PRINT_RIEMANN_SOLUTION 1
 //-----------------------------------------------------
 
 ExactRiemannSolverBase::ExactRiemannSolverBase(std::vector<VarFcnBase*> &vf_, 
@@ -538,10 +537,12 @@ ExactRiemannSolverBase::FindInitialInterval(double rhol, double ul, double pl, d
   }
 
   if(!success || i==maxIts_main) {
-    cout << "*** Warning: Exact Riemann solver failed. (Unable to find a bracketing interval) " << endl;
-    cout << "      left: " << rhol << ", " << ul << ", " << pl << " (" << idl << "); right: "
-                           << rhor << ", " << ur << ", " << pr << " (" << idr << ")."
-                           << " Residual (|ulstar-urstar|): " << fmin << endl;
+    cout << "Warning: Exact Riemann solver failed. (Unable to find a bracketing interval) " << endl;
+    cout << "   left: " << std::setprecision(10) << rhol << ", " << std::setprecision(10) << ul << ", " 
+                           << std::setprecision(10) << pl << " (" << idl << "); right: "
+                           << std::setprecision(10) << rhor << ", " << std::setprecision(10) << ur << ", " 
+                           << std::setprecision(10) << pr << " (" << idr << ")."
+                           << " Residual (|ulstar-urstar|): " << std::setprecision(10) << fmin << endl;
     if(fmin<failure_threshold*fabs(ul-ur)) {
       cout << "*** Best approximate solution: rhols = " << rhol_fmin << ", ps = " << p_fmin << ", us = ("
            << ul_fmin << "(l) + " << ur_fmin << "(r))/2, rhors = " << rhor_fmin << "." << endl;
@@ -766,7 +767,7 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
     double c = vf[id]->ComputeSoundSpeedSquare(rho, e);
 
     if(rho<=0 || c<0) {
-      fprintf(stderr,"*** Warning: Negative density or c^2 (square of sound speed) in ComputeRhoUStar." 
+      fprintf(stderr,"Warning: Negative density or c^2 (square of sound speed) in ComputeRhoUStar." 
                      "rho = %e, p = %e, e = %e, c^2 = %e, id = %d.\n",
                      rho, p, e, c, id);
       return false; //failure
@@ -1045,7 +1046,7 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
 
     double du = -(ps-p)*(1.0/rhos-1.0/rho);
     if(du<0) {
-      //cout << "*** Warning: Violation of hyperbolicitiy when enforcing the Rankine-Hugoniot jump conditions (du = "
+      //cout << "Warning: Violation of hyperbolicitiy when enforcing the Rankine-Hugoniot jump conditions (du = "
       //     << du << ")." << endl;
       return false;
     }
