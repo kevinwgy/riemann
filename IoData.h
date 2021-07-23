@@ -5,6 +5,7 @@
 #include <map>
 #include "parser/Assigner.h"
 #include "parser/Dictionary.h"
+#include <Vector2D.h>
 #include <Vector3D.h>
 #include <Utils.h>
 
@@ -96,6 +97,22 @@ struct SphereData {
 
 //------------------------------------------------------------------------------
 
+struct SpheroidData {
+
+  double cen_x, cen_y, cen_z;
+  double axis_x, axis_y, axis_z;
+  double length, diameter;
+
+  StateVariable initialConditions;
+
+  SpheroidData();
+  ~SpheroidData() {}
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
 struct CylinderConeData {
 
   //! info about the cylinder
@@ -118,6 +135,7 @@ struct MultiInitialConditionsData {
   ObjectMap<PointData>    pointMap;
   ObjectMap<PlaneData>    planeMap;
   ObjectMap<SphereData>   sphereMap;
+  ObjectMap<SpheroidData> spheroidMap;
   ObjectMap<CylinderConeData> cylinderconeMap;
 
   void setup(const char *, ClassAssigner * = 0);
@@ -213,6 +231,30 @@ struct JonesWilkinsLeeModelData {
 
 //------------------------------------------------------------------------------
 
+struct ViscosityModelData {
+
+  enum Type {NONE = 0, CONSTANT = 1, SUTHERLAND = 2, ARTIFICIAL_RODIONOV = 3} type;
+
+  // constant
+  double dynamicViscosity;
+  double bulkViscosity;
+
+  // Sutherland
+  double sutherlandConstant;
+  double sutherlandT0;
+  double sutherlandMu0;
+
+  // Artificial viscosity (Rodionov)
+  double Cav, Cth; 
+
+  ViscosityModelData();
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
 struct MaterialModelData {
 
   int id;
@@ -220,15 +262,20 @@ struct MaterialModelData {
   double rhomin;
   double pmin;
 
+  double failsafe_density; //for updating phase change -- last resort
+
   StiffenedGasModelData    sgModel;
   MieGruneisenModelData    mgModel;
   JonesWilkinsLeeModelData jwlModel;
+
+  ViscosityModelData viscosity;
 
   MaterialModelData();
   ~MaterialModelData() {}
   Assigner *getAssigner();
 
 };
+
 
 //------------------------------------------------------------------------------
 
@@ -248,7 +295,15 @@ struct ReconstructionData {
 
   enum Reconstruction {CONSTANT = 0, LINEAR = 1} type;
   enum Limiter {NONE = 0, GENERALIZED_MINMOD = 1, VANALBADA = 2} limiter; 
+  enum SlopeNearInterface {ZERO = 0, NONZERO = 1} slopeNearInterface;
+
   double generalized_minmod_coeff;
+
+  // for nonlinear conservation laws, reconstruction can be done for variables
+  // of different forms (primitive, conservative, characteristic), and the effect
+  // can be different.
+  enum VariableType {PRIMITIVE = 0, CONSERVATIVE = 1, PRIMITIVE_CHARACTERISTIC = 2,
+                     CONSERVATIVE_CHARACTERISTIC = 3} varType;
 
   ReconstructionData();
   ~ReconstructionData() {}
@@ -259,13 +314,38 @@ struct ReconstructionData {
 
 //------------------------------------------------------------------------------
 
+struct SmoothingData {
+
+  enum Type {NONE = 0, BOX = 1, GAUSSIAN = 2} type;
+
+  int iteration; //number of smoothing iterations applied each time
+
+  double sigma_factor; //coefficient for Gaussian smoothing filter (multipled by dx)
+
+  int frequency;
+  double frequency_dt;
+
+  enum ONOFF {OFF = 0, ON = 1} conservation;
+  double conservation_tol;
+
+  SmoothingData();
+  ~SmoothingData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
 struct SchemeData {
 
-  enum Flux {ROE = 0, LOCAL_LAX_FRIEDRICHS = 1, HLLC = 2} flux;
+  enum Flux {ROE = 0, LOCAL_LAX_FRIEDRICHS = 1, HLLC = 2, GODUNOV = 3} flux;
  
   double delta; //! The coeffient in Harten's entropy fix.
 
   ReconstructionData rec;
+
+  SmoothingData smooth;
 
   SchemeData();
   ~SchemeData() {}
@@ -482,11 +562,16 @@ struct IcData {
   //! user-specified file
   const char *user_specified_ic;
 
-  enum Type {NONE = 0, PLANAR = 1, CYLINDRICAL = 2, SPHERICAL = 3} type;
+  enum Type {NONE = 0, PLANAR = 1, CYLINDRICAL = 2, SPHERICAL = 3, 
+             GENERALCYLINDRICAL = 4} type;
   Vec3D x0;
-  Vec3D dir; //!< relevant for PLANAR and CYLINDRICAL
-  enum Vars {COORDINATE = 0, DENSITY = 1, VELOCITY = 2, PRESSURE = 3,
-             LEVELSET = 4, MATERIALID = 5, TEMPERATURE = 6, SIZE = 7};
+  Vec3D dir; //!< relevant for PLANAR, CYLINDRICAL and GENERALCYLINDRICAL
+
+  Vec2D xmin, xmax; //!< bounding box for interpolation, only for GENERALCYLINDRICAL
+
+  enum Vars {COORDINATE = 0, RADIALCOORDINATE = 1, DENSITY = 2, VELOCITY = 3, 
+             RADIALVELOCITY = 4, PRESSURE = 5, LEVELSET = 6, MATERIALID = 7, 
+             TEMPERATURE = 8, SIZE = 9};
 
   int specified[SIZE];  //!< 0~unspecified, 1~specified
 
@@ -503,6 +588,87 @@ struct IcData {
   void readUserSpecifiedIC_Planar(std::fstream &input);
   void readUserSpecifiedIC_Cylindrical(std::fstream &input);
   void readUserSpecifiedIC_Spherical(std::fstream &input);
+  void readUserSpecifiedIC_GeneralCylindrical(std::fstream &input);
+};
+
+//------------------------------------------------------------------------------
+
+struct ProbeNode {
+
+  double locationX;
+  double locationY;
+  double locationZ;
+
+  ProbeNode();
+  ~ProbeNode() {}
+
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
+struct Probes {
+
+  ObjectMap<ProbeNode> myNodes;
+
+  int frequency;
+  double frequency_dt;
+
+  enum Vars  {DENSITY = 0, VELOCITY_X = 1, VELOCITY_Y = 2, VELOCITY_Z = 3, PRESSURE = 4, TEMPERATURE = 5, 
+              MATERIALID = 6, LEVELSET0 = 7, LEVELSET1 = 8, LEVELSET2 = 9, LEVELSET3 = 10, LEVELSET4 = 11, SIZE = 12};
+
+  const char *density;
+  const char *velocity_x;
+  const char *velocity_y;
+  const char *velocity_z;
+  const char *pressure;
+  const char *temperature;
+  const char *materialid;
+  const char *levelset0;
+  const char *levelset1;
+  const char *levelset2;
+  const char *levelset3;
+  const char *levelset4;
+
+  Probes();
+  ~Probes() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+};
+
+//------------------------------------------------------------------------------
+
+struct LinePlot {
+
+  LinePlot();
+  ~LinePlot() {}
+
+  Assigner *getAssigner();
+
+  const char *filename_base; //!< filename without path
+
+  double x0,y0,z0;
+  double x1,y1,z1;
+
+  int numPoints;
+  int frequency;
+  double frequency_dt;
+
+};
+
+//------------------------------------------------------------------------------
+
+struct MaterialVolumes {
+
+  const char *filename;
+  int frequency;
+  double frequency_dt;
+
+  MaterialVolumes();
+  ~MaterialVolumes() {}
+
+  void setup(const char *, ClassAssigner * = 0);
 };
 
 //------------------------------------------------------------------------------
@@ -514,7 +680,7 @@ struct OutputData {
 
   enum Options {OFF = 0, ON = 1};
   Options density, velocity, pressure, materialid, internal_energy, temperature;
-  Options verbose;
+  enum VerbosityLevel {LOW = 0, MEDIUM = 1, HIGH = 2} verbose;
 
   const static int MAXLS = 5;
   Options levelset[MAXLS];
@@ -527,6 +693,15 @@ struct OutputData {
 
   int frequency;
   double frequency_dt; //!< -1 by default. To activate it, set it to a positive number
+
+
+  Probes probes;
+
+  ObjectMap<LinePlot> linePlots;
+
+  MaterialVolumes materialVolumes;
+
+  const char *mesh_filename; //!< file for nodal coordinates
 
   OutputData();
   ~OutputData() {}

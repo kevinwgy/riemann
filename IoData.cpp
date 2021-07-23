@@ -12,6 +12,7 @@
 #include <climits>
 #include <cmath>
 #include <unistd.h>
+#include <bits/stdc++.h> //INT_MAX
 //#include <dlfcn.h>
 using namespace std;
 
@@ -142,6 +143,45 @@ Assigner *SphereData::getAssigner()
 
 //------------------------------------------------------------------------------
 
+SpheroidData::SpheroidData()
+{
+
+  cen_x  = 0.0;
+  cen_y  = 0.0;
+  cen_z  = 0.0;
+
+  axis_x = 0.0;
+  axis_y = 0.0;
+  axis_z = 0.0;
+
+  length = 0.0;
+  diameter = 0.0;
+
+}
+
+//------------------------------------------------------------------------------
+
+Assigner *SpheroidData::getAssigner()
+{
+
+  ClassAssigner *ca = new ClassAssigner("normal", 9, nullAssigner);
+
+  new ClassDouble<SpheroidData> (ca, "Center_x", this, &SpheroidData::cen_x);
+  new ClassDouble<SpheroidData> (ca, "Center_y", this, &SpheroidData::cen_y);
+  new ClassDouble<SpheroidData> (ca, "Center_z", this, &SpheroidData::cen_z);
+  new ClassDouble<SpheroidData> (ca, "Axis_x", this, &SpheroidData::axis_x);
+  new ClassDouble<SpheroidData> (ca, "Axis_y", this, &SpheroidData::axis_y);
+  new ClassDouble<SpheroidData> (ca, "Axis_z", this, &SpheroidData::axis_z);
+  new ClassDouble<SpheroidData> (ca, "Length", this, &SpheroidData::length);
+  new ClassDouble<SpheroidData> (ca, "Diameter", this, &SpheroidData::diameter);
+
+  initialConditions.setup("InitialState", ca);
+
+  return ca;
+}
+
+//------------------------------------------------------------------------------
+
 CylinderConeData::CylinderConeData() {
 
   cen_x  = 0.0;
@@ -189,6 +229,7 @@ void MultiInitialConditionsData::setup(const char *name, ClassAssigner *father)
   pointMap.setup("Point", ca);
   planeMap.setup("Plane", ca);
   sphereMap.setup("Sphere", ca);
+  spheroidMap.setup("Spheroid", ca);
   cylinderconeMap.setup("CylinderAndCone", ca);
 }
 
@@ -396,8 +437,10 @@ MaterialModelData::MaterialModelData()
 {
 
   eos = STIFFENED_GAS;
-  rhomin = 1.0e-14; // By default, density cannot be 0 or negative
+  rhomin = -1.0e-14; // By default, density cannot be zero or negative
   pmin = -DBL_MAX;   // By default, no clipping
+
+  failsafe_density = 0.0; //Giving it a nonphysical density by default (i.e. not used)
 
 }
 
@@ -406,7 +449,7 @@ MaterialModelData::MaterialModelData()
 Assigner *MaterialModelData::getAssigner()
 {
 
-  ClassAssigner *ca = new ClassAssigner("normal", 6, nullAssigner);
+  ClassAssigner *ca = new ClassAssigner("normal", 8, nullAssigner);
 
   new ClassToken<MaterialModelData>(ca, "EquationOfState", this,
                                  reinterpret_cast<int MaterialModelData::*>(&MaterialModelData::eos), 3,
@@ -416,12 +459,65 @@ Assigner *MaterialModelData::getAssigner()
   new ClassDouble<MaterialModelData>(ca, "DensityCutOff", this, &MaterialModelData::rhomin);
   new ClassDouble<MaterialModelData>(ca, "PressureCutOff", this, &MaterialModelData::pmin);
 
+  new ClassDouble<MaterialModelData>(ca, "DensityPrescribedAtFailure", this, &MaterialModelData::failsafe_density);
+
   sgModel.setup("StiffenedGasModel", ca);
   mgModel.setup("MieGruneisenModel", ca);
   jwlModel.setup("JonesWilkinsLeeModel", ca);
 
+  viscosity.setup("ViscosityModel", ca);
+  
   return ca;
 };
+
+//------------------------------------------------------------------------------
+
+ViscosityModelData::ViscosityModelData() {
+
+  type = NONE;
+
+  dynamicViscosity   = 1.716e-5; //air, Pa.s
+  bulkViscosity      = 0.0;
+
+  sutherlandConstant = 111.0; //air, Kelvin
+  sutherlandT0 = 273.0;  //air, Kelvin
+  sutherlandMu0 = 1.716e-5;   //air, Pa.s
+
+  Cav = 0.8;
+  Cth = 0.05;
+}
+
+//------------------------------------------------------------------------------
+
+void ViscosityModelData::setup(const char *name, ClassAssigner *father) {
+
+  ClassAssigner *ca = new ClassAssigner(name, 8, father);
+
+  new ClassToken<ViscosityModelData>(ca, "Type", this,
+                                     reinterpret_cast<int ViscosityModelData::*>(&ViscosityModelData::type), 4,
+                                     "None",        ViscosityModelData::NONE,
+                                     "Constant",        ViscosityModelData::CONSTANT,
+                                     "Sutherland",      ViscosityModelData::SUTHERLAND,
+                                     "Artificial", ViscosityModelData::ARTIFICIAL_RODIONOV);
+
+  new ClassDouble<ViscosityModelData>(ca, "ReferenceTemperature", this,
+                                      &ViscosityModelData::sutherlandT0);
+  new ClassDouble<ViscosityModelData>(ca, "ReferenceDynamicViscosity", this,
+                                      &ViscosityModelData::sutherlandMu0);
+  new ClassDouble<ViscosityModelData>(ca, "SutherlandConstant", this,
+                                      &ViscosityModelData::sutherlandConstant);
+
+  new ClassDouble<ViscosityModelData>(ca, "DynamicViscosity", this,
+                                      &ViscosityModelData::dynamicViscosity);
+  new ClassDouble<ViscosityModelData>(ca, "BulkViscosity", this,
+                                      &ViscosityModelData::bulkViscosity);
+
+  new ClassDouble<ViscosityModelData>(ca, "Cav", this,
+                                      &ViscosityModelData::Cav);
+  new ClassDouble<ViscosityModelData>(ca, "Cth", this,
+                                      &ViscosityModelData::Cth);
+
+}
 
 //------------------------------------------------------------------------------
 
@@ -437,6 +533,7 @@ void EquationsData::setup(const char *name, ClassAssigner *father)
   ClassAssigner *ca = new ClassAssigner(name, 1, father); 
 
   materials.setup("Material", ca);
+
 }
 
 //------------------------------------------------------------------------------
@@ -444,20 +541,29 @@ void EquationsData::setup(const char *name, ClassAssigner *father)
 ReconstructionData::ReconstructionData() 
 {
   type = LINEAR;
-  limiter = GENERALIZED_MINMOD;
-  generalized_minmod_coeff = 2.0; //The MC Limiter
+  limiter = NONE;
+  slopeNearInterface = NONZERO;
+
+  generalized_minmod_coeff = 1.2; //The generalized MC Limiter
+
+  varType = PRIMITIVE;
 }
 
 //------------------------------------------------------------------------------
 
 void ReconstructionData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 3, father); 
+  ClassAssigner *ca = new ClassAssigner(name, 5, father); 
 
   new ClassToken<ReconstructionData>
     (ca, "Type", this,
      reinterpret_cast<int ReconstructionData::*>(&ReconstructionData::type), 2,
      "Constant", 0, "Linear", 1);
+
+  new ClassToken<ReconstructionData>
+    (ca, "SlopeNearInterface", this,
+     reinterpret_cast<int ReconstructionData::*>(&ReconstructionData::slopeNearInterface), 2,
+     "Zero", 0, "NonZero", 1);
 
   new ClassToken<ReconstructionData>
     (ca, "Limiter", this,
@@ -466,14 +572,63 @@ void ReconstructionData::setup(const char *name, ClassAssigner *father)
 
   new ClassDouble<ReconstructionData>(ca, "GeneralizedMinModCoefficient", this, 
     &ReconstructionData::generalized_minmod_coeff);
+
+  new ClassToken<ReconstructionData>
+    (ca, "VariableType", this,
+     reinterpret_cast<int ReconstructionData::*>(&ReconstructionData::varType), 4,
+     "Primitive", 0, "Conservative", 1, "PrimitiveCharacteristic", 2,
+     "ConservativeCharacteristic", 3);
+}
+
+//------------------------------------------------------------------------------
+
+SmoothingData::SmoothingData()
+{
+  type = NONE;
+  iteration = 1;
+  sigma_factor = 1.0;
+
+  frequency = -100;
+  frequency_dt = -1.0;
+
+  conservation = OFF;
+  conservation_tol = 0.1;
+}
+
+//------------------------------------------------------------------------------
+
+void SmoothingData::setup(const char *name, ClassAssigner *father)
+{
+  ClassAssigner *ca = new ClassAssigner(name, 7, father); 
+
+  new ClassToken<SmoothingData>
+    (ca, "Type", this,
+     reinterpret_cast<int SmoothingData::*>(&SmoothingData::type), 3,
+     "None", 0, "Box", 1, "Gaussian", 2);
+
+  new ClassInt<SmoothingData>(ca, "NumberOfIterations", this, &SmoothingData::iteration);
+
+  new ClassDouble<SmoothingData>(ca, "SigmaFactor", this, &SmoothingData::sigma_factor);
+
+  new ClassInt<SmoothingData>(ca, "Frequency", this, &SmoothingData::frequency);
+
+  new ClassDouble<SmoothingData>(ca, "TimeInterval", this, &SmoothingData::frequency_dt);
+
+  new ClassToken<SmoothingData>
+    (ca, "EnforceConservation", this,
+     reinterpret_cast<int SmoothingData::*>(&SmoothingData::conservation), 2,
+     "Off", 0, "On", 1);
+
+  new ClassDouble<SmoothingData>(ca, "ConservationTolerance", this, &SmoothingData::conservation_tol);
 }
 
 //------------------------------------------------------------------------------
 
 SchemeData::SchemeData() 
 {
-  flux = ROE;
-  delta = 0.2; //the coefficient in Harten's entropy fix.
+  flux = HLLC;
+
+  delta = 0.2; //the coefficient in Harten's entropy fix (for Roe flux)
 }
 
 //------------------------------------------------------------------------------
@@ -482,17 +637,18 @@ void SchemeData::setup(const char *name, ClassAssigner *father)
 {
 
   ClassAssigner* ca;
-  ca = new ClassAssigner(name, 3, father);
+  ca = new ClassAssigner(name, 4, father);
 
   new ClassToken<SchemeData>
     (ca, "Flux", this,
-     reinterpret_cast<int SchemeData::*>(&SchemeData::flux), 3,
-     "Roe", 0, "LocalLaxFriedrichs", 1, "HLLC", 2);
+     reinterpret_cast<int SchemeData::*>(&SchemeData::flux), 4,
+     "Roe", 0, "LocalLaxFriedrichs", 1, "HLLC", 2, "Godunov", 3);
 
   new ClassDouble<SchemeData>(ca, "EntropyFixCoefficient", this, &SchemeData::delta);
 
   rec.setup("Reconstruction", ca);
 
+  smooth.setup("Smoothing", ca);
 }
 
 //------------------------------------------------------------------------------
@@ -619,13 +775,13 @@ void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
   new ClassDouble<ExactRiemannSolverData>(ca, "ToleranceRarefaction", this, 
                                           &ExactRiemannSolverData::tol_rarefaction);
 
-  new ClassDouble<ExactRiemannSolverData>(ca, "MinPressure", this, 
+  new ClassDouble<ExactRiemannSolverData>(ca, "MinPressure", this,
                                           &ExactRiemannSolverData::min_pressure);
 
-  new ClassDouble<ExactRiemannSolverData>(ca, "FailureThreshold", this, 
+  new ClassDouble<ExactRiemannSolverData>(ca, "FailureThreshold", this,
                                           &ExactRiemannSolverData::failure_threshold);
 
-  new ClassDouble<ExactRiemannSolverData>(ca, "PrescribedPressureUponFailure", this, 
+  new ClassDouble<ExactRiemannSolverData>(ca, "PrescribedPressureUponFailure", this,
                                           &ExactRiemannSolverData::pressure_at_failure);
 
 }
@@ -883,7 +1039,9 @@ void IcData::readUserSpecifiedIC()
 
   std::string word, line;
 
-  // Read the first line of user-specified file
+  input.ignore(512,'\n'); //done with line 1 (not read, user's comment)
+
+  // Read the second line of user-specified file
   input.ignore(2,' '); //This line should start with ## (so the file can be plotted
                        //directly using gnuplot). It must then specify the type of initial cond.
 
@@ -893,22 +1051,29 @@ void IcData::readUserSpecifiedIC()
        word.compare(0,4,"PLANAR",0,4) && 
        word.compare(0,4,"planar",0,4))) {
     type = PLANAR;
-    input.ignore(256,'\n'); //done with line 1
+    input.ignore(256,'\n'); //done with line 2
     readUserSpecifiedIC_Planar(input);
   } 
   else if(!(word.compare(0,4,"Cylindrical",0,4) && 
             word.compare(0,4,"CYLINDRICAL",0,4) && 
             word.compare(0,4,"cylindrical",0,4))) {
     type = CYLINDRICAL;
-    input.ignore(256,'\n'); //done with line 1
+    input.ignore(256,'\n'); //done with line 2
     readUserSpecifiedIC_Cylindrical(input);
   } 
   else if(!(word.compare(0,4,"Spherical",0,4) && 
             word.compare(0,4,"SPHERICAL",0,4) && 
             word.compare(0,4,"spherical",0,4))) {
     type = SPHERICAL;
-    input.ignore(256,'\n'); //done with line 1
+    input.ignore(256,'\n'); //done with line 2
     readUserSpecifiedIC_Spherical(input);
+  } 
+  else if(!(word.compare(0,4,"GeneralCylindrical",0,4) && 
+            word.compare(0,4,"GENERALCYLINDRICAL",0,4) && 
+            word.compare(0,4,"generalcylindrical",0,4))) {
+    type = GENERALCYLINDRICAL;
+    input.ignore(256,'\n'); //done with line 2
+    readUserSpecifiedIC_GeneralCylindrical(input);
   } 
   else {
     print_error("*** Error: Unknown initial condition type %s.\n", word);
@@ -926,7 +1091,7 @@ void IcData::readUserSpecifiedIC_Planar(std::fstream &input)
 {
   std::string word, line;
 
-  // Read the second line of user-specified file
+  // Read the third line of user-specified file
   input.ignore(2,' '); //This line should start with ## 
                        //It must then contain 3 real numbers corresponding to the (x,y,z) coordinates
                        //of the "0" in this data file within the actual mesh
@@ -1006,9 +1171,8 @@ void IcData::readUserSpecifiedIC_Planar(std::fstream &input)
   }
 
   // Now start reading the actual data (until end of file)
-  int MaxRows = 100000; //should be a lot more than enough
   double data;
-  for(int r=0; r<MaxRows; r++) {
+  for(int r=0; r<INT_MAX; r++) {
     getline(input, line);
     std::istringstream is(line);
     for(int i=0; i<column; i++) {
@@ -1031,7 +1195,7 @@ void IcData::readUserSpecifiedIC_Cylindrical(std::fstream &input)
 {
   std::string word, line;
 
-  // Read the second line of user-specified file
+  // Read the third line of user-specified file
   input.ignore(2,' '); //This line should start with ## 
                        //It must then contain 3 real numbers corresponding to the (x,y,z) coordinates
                        //of the "0" in this data file within the actual mesh
@@ -1124,10 +1288,9 @@ void IcData::readUserSpecifiedIC_Cylindrical(std::fstream &input)
 
 
   // Now start reading the data in the axial direction
-  int MaxRows = 100000; //should be a lot more than enough
   double data;
   bool found_radial = false;
-  for(int r=0; r<MaxRows; r++) {
+  for(int r=0; r<INT_MAX; r++) {
 
     getline(input, line);
 
@@ -1155,7 +1318,7 @@ void IcData::readUserSpecifiedIC_Cylindrical(std::fstream &input)
   }
 
   if(found_radial) { //read radial variation
-    for(int r=0; r<MaxRows; r++) {
+    for(int r=0; r<INT_MAX; r++) {
       getline(input, line);
 
       std::istringstream is(line);
@@ -1174,6 +1337,135 @@ void IcData::readUserSpecifiedIC_Cylindrical(std::fstream &input)
 
 }
 
+
+//------------------------------------------------------------------------------
+
+// Read general cylindrical initial condition (2D) from file
+void IcData::readUserSpecifiedIC_GeneralCylindrical(std::fstream &input)
+{
+  std::string word, line;
+
+  // Read the third line of user-specified file
+  input.ignore(2,' '); //This line should start with ## 
+                       //It must then contain 3 real numbers corresponding to the (x,y,z) coordinates
+                       //of the "0" in this data file within the actual mesh
+  input >> x0[0] >> x0[1] >> x0[2];
+  input.ignore(256,'\n'); //done with line 2
+
+  // Read the next line
+  input.ignore(2,' '); //This line should start with ##
+                       //It must contain 3 real numbers corresponding to the positive direction of axis of symmetry
+  input >> dir[0] >> dir[1] >> dir[2];
+  dir /= dir.norm();
+  input.ignore(256,'\n'); //done with this line
+
+  // Read the next line
+  input.ignore(2,' '); //This line should start with ##
+                       //It must contain 4 real numbers corresponding to xmin, xmax, rmin, rmax --- the bounding box
+                       //for interpolation
+  input >> xmin[0] >> xmax[0] >> xmin[1] >> xmax[1];
+  input.ignore(256,'\n'); //done with this line
+
+  // Read the next line, which specifies the variable of each column
+  input.ignore(2,' '); //This line should start with ##
+                       //It must contain between 2 and SIZE words indicating the field
+  for(int i=0; i<SIZE; i++)
+    specified[i] = 0;
+  std::map<int,int> column2var; //maps the column number to "Vars" index 
+  getline(input, line);
+
+  std::istringstream iss(line);
+  int column = 0; 
+  for(;iss>>word;) {
+    // just check the first four letters
+    if(!(word.compare(0,10,"AxialCoordinate",0,10) && 
+         word.compare(0,10,"AXIALCOORDINATE",0,10) && 
+         word.compare(0,10,"axialcoordinate",0,10))) {
+      column2var[column] = COORDINATE;
+      specified[COORDINATE] = 1;
+    } 
+    else if(!(word.compare(0,10,"RadialCoordinate",0,10) && 
+         word.compare(0,10,"RADIALCOORDINATE",0,10) && 
+         word.compare(0,10,"radialcoordinate",0,10))) {
+      column2var[column] = RADIALCOORDINATE;
+      specified[RADIALCOORDINATE] = 1;
+    } 
+    else if(!(word.compare(0,4,"Density",0,4) && 
+              word.compare(0,4,"DENSITY",0,4) && 
+              word.compare(0,4,"density",0,4))) {
+      column2var[column] = DENSITY;
+      specified[DENSITY] = 1;
+    } 
+    else if(!(word.compare(0,10,"AxialVelocity",0,10) && 
+              word.compare(0,10,"AXIALVELOCITY",0,10) && 
+              word.compare(0,10,"axialvelocity",0,10))) {
+      column2var[column] = VELOCITY;
+      specified[VELOCITY] = 1;
+    } 
+    else if(!(word.compare(0,10,"RadialVelocity",0,10) && 
+              word.compare(0,10,"RADIALVELOCITY",0,10) && 
+              word.compare(0,10,"radialvelocity",0,10))) {
+      column2var[column] = RADIALVELOCITY;
+      specified[RADIALVELOCITY] = 1;
+    } 
+    else if(!(word.compare(0,4,"Pressure",0,4) && 
+              word.compare(0,4,"PRESSURE",0,4) && 
+              word.compare(0,4,"pressure",0,4))) {
+      column2var[column] = PRESSURE;
+      specified[PRESSURE] = 1;
+    } 
+    else if(!(word.compare(0,4,"LevelSet",0,4) && 
+              word.compare(0,4,"LEVELSET",0,4) && 
+              word.compare(0,4,"levelset",0,4))) {
+      column2var[column] = LEVELSET;
+      specified[LEVELSET] = 1;
+    } 
+    else if(!(word.compare(0,4,"MaterialID",0,4) && 
+              word.compare(0,4,"MATERIALID",0,4) && 
+              word.compare(0,4,"materialid",0,4))) {
+      column2var[column] = MATERIALID;
+      specified[MATERIALID] = 1;
+    } 
+    else if(!(word.compare(0,4,"Temperature",0,4) && 
+              word.compare(0,4,"TEMPERATURE",0,4) && 
+              word.compare(0,4,"temperature",0,4))) {
+      column2var[column] = TEMPERATURE;
+      specified[TEMPERATURE] = 1;
+    } else {
+      print_error("*** Error: I do not understand the word '%s' in the user-specified initial condition file.\n", word.c_str());
+      exit_mpi();
+    }
+    column++;
+  }
+
+  if(column<3 || !specified[COORDINATE] || !specified[RADIALCOORDINATE]) {
+    print_error("*** Error: Need additional data in the initial condition file.\n");
+    exit_mpi();
+  }
+
+  // Now start reading the data in the axial direction
+  double data;
+  bool found_radial = false;
+  for(int r=0; r<INT_MAX; r++) {
+
+    getline(input, line);
+
+    std::istringstream is(line);
+    for(int i=0; i<column; i++) {
+      is >> data; 
+      if(is.fail())
+        break;
+      //cout << "row " << r << ", column " << i << ": " << data << endl;
+      user_data[column2var[i]].push_back(data);
+    }
+
+    if(input.eof())
+      break;
+  }
+
+}
+
+
 //------------------------------------------------------------------------------
 
 // Read spherical initial condition from file
@@ -1182,7 +1474,7 @@ void IcData::readUserSpecifiedIC_Spherical(std::fstream &input)
 {
   std::string word, line;
 
-  // Read the second line of user-specified file
+  // Read the third line of user-specified file
   input.ignore(2,' '); //This line should start with ## 
                        //It must then contain 3 real numbers corresponding to the (x,y,z) coordinates
                        //of the "0" in this data file within the actual mesh
@@ -1255,7 +1547,7 @@ void IcData::readUserSpecifiedIC_Spherical(std::fstream &input)
   }
 
   // Now start reading the actual data (until end of file)
-  int MaxRows = 100000; //should be a lot more than enough
+  int MaxRows = 200000; //should be a lot more than enough
   double data;
   for(int r=0; r<MaxRows; r++) {
     getline(input, line);
@@ -1272,6 +1564,29 @@ void IcData::readUserSpecifiedIC_Spherical(std::fstream &input)
   }
 
 }
+
+//------------------------------------------------------------------------------
+
+MaterialVolumes::MaterialVolumes()
+{
+  filename = "";
+  frequency = 10;
+  frequency_dt = -1.0;
+}
+
+//------------------------------------------------------------------------------
+
+void MaterialVolumes::setup(const char *name, ClassAssigner *father)
+{
+
+  ClassAssigner *ca = new ClassAssigner(name, 3, father);
+
+  new ClassStr<MaterialVolumes>(ca, "FileName", this, &MaterialVolumes::filename);
+  new ClassInt<MaterialVolumes>(ca, "Frequency", this, &MaterialVolumes::frequency);
+  new ClassDouble<MaterialVolumes>(ca, "TimeInterval", this, &MaterialVolumes::frequency_dt);
+
+}
+
 //------------------------------------------------------------------------------
 
 OutputData::OutputData()
@@ -1297,14 +1612,16 @@ OutputData::OutputData()
   for(int i=0; i<MAXLS; i++)
     levelset[i] = OFF;
 
-  verbose = OFF;
+  mesh_filename = "";
+
+  verbose = MEDIUM;
 }
 
 //------------------------------------------------------------------------------
 
 void OutputData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 11+MAXLS, father);
+  ClassAssigner *ca = new ClassAssigner(name, 15+MAXLS, father);
 
   new ClassStr<OutputData>(ca, "Prefix", this, &OutputData::prefix);
   new ClassStr<OutputData>(ca, "Solution", this, &OutputData::solution_filename_base);
@@ -1347,13 +1664,126 @@ void OutputData::setup(const char *name, ClassAssigner *father)
                                reinterpret_cast<int OutputData::*>(&OutputData::levelset4), 2,
                                "Off", 0, "On", 1);
 
+  new ClassStr<OutputData>(ca, "MeshInformation", this, &OutputData::mesh_filename);
 
   new ClassToken<OutputData>(ca, "VerboseScreenOutput", this,
-                               reinterpret_cast<int OutputData::*>(&OutputData::verbose), 2,
-                               "Off", 0, "On", 1);
+                               reinterpret_cast<int OutputData::*>(&OutputData::verbose), 3,
+                               "Low", 0, "Medium", 1, "High");
+
+  probes.setup("Probes", ca);
+
+  linePlots.setup("LinePlot", ca);
+
+  materialVolumes.setup("MaterialVolumes", ca);
 }
 
 //------------------------------------------------------------------------------
+
+ProbeNode::ProbeNode() {
+  locationX = locationY = locationZ = -1.0e20;
+}
+
+//------------------------------------------------------------------------------
+
+Assigner* ProbeNode::getAssigner()
+{
+  ClassAssigner *ca = new ClassAssigner("normal", 3, nullAssigner);
+
+  new ClassDouble<ProbeNode>(ca, "X",this,&ProbeNode::locationX);
+  new ClassDouble<ProbeNode>(ca, "Y",this,&ProbeNode::locationY);
+  new ClassDouble<ProbeNode>(ca, "Z",this,&ProbeNode::locationZ);
+
+  return ca;
+}
+
+//------------------------------------------------------------------------------
+
+Probes::Probes() {
+
+  frequency = -100;
+  frequency_dt = -1;
+
+  density = "";
+  pressure = "";
+  temperature = "";
+  velocity_x = "";
+  velocity_y = "";
+  velocity_z = "";
+  materialid = "";
+  levelset0 = "";
+  levelset1 = "";
+  levelset2 = "";
+  levelset3 = "";
+  levelset4 = "";
+
+}
+
+//------------------------------------------------------------------------------
+
+void Probes::setup(const char *name, ClassAssigner *father)
+{
+
+  ClassAssigner *ca = new ClassAssigner(name, 15, father);
+
+  new ClassInt<Probes>(ca, "Frequency", this, &Probes::frequency);
+  new ClassDouble<Probes>(ca, "TimeInterval", this, &Probes::frequency_dt);
+  new ClassStr<Probes>(ca, "Density", this, &Probes::density);
+  new ClassStr<Probes>(ca, "Pressure", this, &Probes::pressure);
+  new ClassStr<Probes>(ca, "Temperature", this, &Probes::temperature);
+  new ClassStr<Probes>(ca, "VelocityX", this, &Probes::velocity_x);
+  new ClassStr<Probes>(ca, "VelocityY", this, &Probes::velocity_y);
+  new ClassStr<Probes>(ca, "VelocityZ", this, &Probes::velocity_z);
+  new ClassStr<Probes>(ca, "MaterialID", this, &Probes::materialid);
+  new ClassStr<Probes>(ca, "LevelSet0", this, &Probes::levelset0);
+  new ClassStr<Probes>(ca, "LevelSet1", this, &Probes::levelset1);
+  new ClassStr<Probes>(ca, "LevelSet2", this, &Probes::levelset2);
+  new ClassStr<Probes>(ca, "LevelSet3", this, &Probes::levelset3);
+  new ClassStr<Probes>(ca, "LevelSet4", this, &Probes::levelset4);
+
+  myNodes.setup("Node", ca);
+
+}
+
+//------------------------------------------------------------------------------
+
+LinePlot::LinePlot() {
+
+  x0 = y0 = z0 = 0.0;
+  x1 = y1 = z1 = 0.0;
+
+  numPoints = 0;
+  frequency = -100;
+  frequency_dt = -1.0;
+
+  filename_base = "";
+}
+
+//------------------------------------------------------------------------------
+
+Assigner* LinePlot::getAssigner()
+{
+
+  ClassAssigner *ca = new ClassAssigner("normal", 10, nullAssigner);
+
+  new ClassStr<LinePlot>(ca, "FileName", this, &LinePlot::filename_base);
+
+  new ClassInt<LinePlot>(ca, "NumberOfPoints", this, &LinePlot::numPoints);
+  new ClassInt<LinePlot>(ca, "Frequency", this, &LinePlot::frequency);
+  new ClassDouble<LinePlot>(ca, "TimeInterval", this, &LinePlot::frequency_dt);
+
+  new ClassDouble<LinePlot>(ca, "X0", this, &LinePlot::x0);
+  new ClassDouble<LinePlot>(ca, "Y0", this, &LinePlot::y0);
+  new ClassDouble<LinePlot>(ca, "Z0", this, &LinePlot::z0);
+  new ClassDouble<LinePlot>(ca, "Xmax", this, &LinePlot::x1);
+  new ClassDouble<LinePlot>(ca, "Ymax", this, &LinePlot::y1);
+  new ClassDouble<LinePlot>(ca, "Zmax", this, &LinePlot::z1);
+
+  return ca;
+
+}
+
+//------------------------------------------------------------------------------
+
 
 IoData::IoData(int argc, char** argv)
 {

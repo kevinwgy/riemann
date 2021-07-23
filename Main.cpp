@@ -11,6 +11,7 @@ using std::endl;
 /*************************************
  * Main Function
  ************************************/
+int verbose = 0;
 int main(int argc, char* argv[])
 {
   clock_t start_time = clock(); //for timing purpose only
@@ -25,6 +26,8 @@ int main(int argc, char* argv[])
   //! Read user's input file
   IoData iod(argc, argv);
 
+  verbose = iod.output.verbose;
+
   //! Initialize VarFcn (EOS, etc.) 
 
   std::vector<VarFcnBase *> vf;
@@ -38,11 +41,11 @@ int main(int argc, char* argv[])
       exit_mpi();
     }
     if(it->second->eos == MaterialModelData::STIFFENED_GAS)
-      vf[matid] = new VarFcnSG(*it->second, iod.output.verbose);
+      vf[matid] = new VarFcnSG(*it->second);
     else if(it->second->eos == MaterialModelData::MIE_GRUNEISEN)
-      vf[matid] = new VarFcnMG(*it->second, iod.output.verbose);
+      vf[matid] = new VarFcnMG(*it->second);
     else if(it->second->eos == MaterialModelData::JWL)
-      vf[matid] = new VarFcnJWL(*it->second, iod.output.verbose);
+      vf[matid] = new VarFcnJWL(*it->second);
     else {
       print_error("Error: Unable to initialize variable functions (VarFcn) for the specified material model.\n");
       exit_mpi();

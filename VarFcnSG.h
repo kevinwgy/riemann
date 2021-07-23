@@ -3,7 +3,6 @@
 
 #include <VarFcnBase.h>
 #include <fstream>
-#include <Utils.h>
 
 /********************************************************************************
  * This class is the VarFcn class for the Stiffened Gas EOS in Euler
@@ -32,7 +31,7 @@ private:
   double invgam1; //!< 1/(gamma-1)
 
 public:
-  VarFcnSG(MaterialModelData &data, bool verbose_ = true);
+  VarFcnSG(MaterialModelData &data);
   ~VarFcnSG() {}
 
   //! ----- EOS-Specific Functions -----
@@ -43,10 +42,14 @@ public:
   inline double GetBigGamma(double rho, double e) const {return gam1;}
 
   //! Verify hyperbolicity (i.e. c^2 > 0): Report error if rho < 0 or p + Pstiff < 0 (Not p + gamma*Pstiff). 
-  inline bool CheckState(double *V) const{
-    if(V[0] <= 0.0 || V[4]+Pstiff <= 0.0){
-      if(verbose)
-        fprintf(stdout, "Warning:  found negative density (%e) or negative pressure (p = %e, Pstiff = %e).\n", V[0], V[4], Pstiff);
+  inline bool CheckState(double rho, double p) const{
+    if(m2c_isnan(rho) || m2c_isnan(p)) {
+      fprintf(stderr, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
+      return true;
+    }
+    if(rho <= 0.0 || p+Pstiff <= 0.0){
+      if(verbose>1)
+        fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
       return true;
     }
     return false;
@@ -57,11 +60,11 @@ public:
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 inline
-VarFcnSG::VarFcnSG(MaterialModelData &data, bool verbose_) : VarFcnBase(data,verbose_) {
+VarFcnSG::VarFcnSG(MaterialModelData &data) : VarFcnBase(data) {
 
   if(data.eos != MaterialModelData::STIFFENED_GAS){
     fprintf(stderr, "*** Error: MaterialModelData is not of type GAS\n");
-    exit(1);
+    exit(-1);
   }
 
   type = STIFFENED_GAS;

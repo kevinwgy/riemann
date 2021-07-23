@@ -5,7 +5,6 @@
 #include <Vector3D.h>
 #include <cmath>
 #include <iostream>
-#include <Utils.h>
 
 /****************************************************************************
  * This class is the base class for the VarFcnEOS classes where EOS can be
@@ -27,6 +26,8 @@
  *  - 4 -  EOS related functions
  ***************************************************************************/
 
+extern int verbose;
+
 class VarFcnBase {
 
 public:
@@ -35,12 +36,12 @@ public:
 
   double rhomin,pmin;
 
-  bool verbose;
+  double failsafe_density;
 
-  VarFcnBase(MaterialModelData &data, bool verbose_) {
+  VarFcnBase(MaterialModelData &data) {
     rhomin = data.rhomin;
     pmin = data.pmin;
-    verbose = verbose_;
+    failsafe_density = data.failsafe_density;
   }
   virtual ~VarFcnBase() {}
  
@@ -48,29 +49,34 @@ public:
   //! get pressure from density (rho) and internal energy per unit mass (e)
   virtual double GetPressure(double rho, double e) const{
     print_error("*** Error:  GetPressure Function not defined\n");
-    exit_mpi(); return 0.0;}
+    exit(-1); return 0.0;}
 
   //! get e (internal energy per unit mass) from density (rho) and pressure (p)
   virtual double GetInternalEnergyPerUnitMass(double rho, double p) const{
     print_error("*** Error:  GetInternalEnergyPerUnitMass Function not defined\n");
-    exit_mpi(); return 0.0;}
+    exit(-1); return 0.0;}
 
   //! get rho (density) from p (pressure) and p (internal energy per unit mass)
   virtual double GetDensity(double p, double e) const{
     print_error("*** Error:  GetDensity Function not defined\n");
-    exit_mpi(); return 0.0;}
+    exit(-1); return 0.0;}
 
   //! dpdrho = \frac{\partial p(\rho,e)}{\partial \rho}
   virtual double GetDpdrho(double rho, double e) const{
     print_error("*** Error:  GetDpdrho Function not defined\n");
-    exit_mpi(); return 0.0;}
+    exit(-1); return 0.0;}
 
   //! BigGamma = 1/rho*(\frac{\partial p(\rho,e)}{\partial e})
   //  It is called "BigGamma" to distinguish it from the small "gamma" in perfect and stiffened EOS.
   virtual double GetBigGamma(double rho, double e) const{
     print_error("*** Error:  GetBigGamma Function not defined\n");
-    exit_mpi(); return 0.0;}
-  
+    exit(-1); return 0.0;}
+
+  //! temperature law, defined separately for each EOS
+  virtual double GetTemperature(double rho, double e) const{
+    print_error("*** Error:  GetTemperature Function not defined\n");
+    exit(-1); return 0.0;}
+
   //checks that the Euler equations are still hyperbolic
   virtual bool CheckState(double rho, double p) const{
     if(m2c_isnan(rho) || m2c_isnan(p)) {
@@ -78,14 +84,14 @@ public:
       return true;
     }
     if(rho <= 0.0) {
-      if(verbose)
+      if(verbose>1)
         fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
       return true;
     }
     double e = GetInternalEnergyPerUnitMass(rho,p);
     double c2 = GetDpdrho(rho, e) + p/rho*GetBigGamma(rho, e);
     if(c2<=0){
-      if(verbose)
+      if(verbose>1)
         fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
       return true;
     }
@@ -159,7 +165,7 @@ double VarFcnBase::ComputeSoundSpeed(double rho, double e)
   if(c2<=0) {
     fprintf(stderr,"*** Error: Cannot calculate speed of sound (Square-root of a negative number): rho = %e, e = %e.\n",
             rho, e);
-    exit_mpi();
+    exit(-1);
   }
   return sqrt(c2);
 }
@@ -183,7 +189,7 @@ double VarFcnBase::ComputeMachNumber(double *V)
   if(c<0) {
     fprintf(stderr,"*** Error: c^2 (square of sound speed) = %e in ComputeMachNumber. V = %e, %e, %e, %e, %e.\n",
             c, V[0], V[1], V[2], V[3], V[4]);
-    exit_mpi();
+    exit(-1);
   } else
     c = sqrt(c);
 
@@ -210,15 +216,15 @@ bool VarFcnBase::ClipDensityAndPressure(double *V, double *U)
   bool clip = false;
 
   if(V[0]<rhomin){
-    if(verbose)
-      fprintf(stderr,"clip density from %e to %e.\n", V[0], rhomin);
+//    if(verbose)
+//      fprintf(stderr,"clip density from %e to %e.\n", V[0], rhomin);
     V[0] = rhomin;
     clip = true;
   }
 
   if(V[4]<pmin){
-    if(verbose)
-      fprintf(stdout, "clip pressure from %e to %e\n", V[4], pmin);
+//    if(verbose)
+//      fprintf(stdout, "clip pressure from %e to %e\n", V[4], pmin);
     V[4] = pmin;
     clip = true;
   }

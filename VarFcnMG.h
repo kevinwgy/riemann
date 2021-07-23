@@ -3,7 +3,6 @@
 
 #include <VarFcnBase.h>
 #include <fstream>
-#include <Utils.h>
 
 /********************************************************************************
  * This class is the VarFcn class for the Mie-Gruneisen EOS in Euler
@@ -48,7 +47,7 @@ private:
   double Gamma0_rho0;   //!< Gamma0*rho0
 
 public:
-  VarFcnMG(MaterialModelData &data, bool verbose_ = true);
+  VarFcnMG(MaterialModelData &data);
   ~VarFcnMG() {}
 
   //! ----- EOS-Specific Functions -----
@@ -76,11 +75,11 @@ public:
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 inline
-VarFcnMG::VarFcnMG(MaterialModelData &data, bool verbose_) : VarFcnBase(data,verbose_) {
+VarFcnMG::VarFcnMG(MaterialModelData &data) : VarFcnBase(data) {
 
   if(data.eos != MaterialModelData::MIE_GRUNEISEN){
     fprintf(stderr, "*** Error: MaterialModelData is not of type Mie-Gruneisen.\n");
-    exit_mpi();
+    exit(-1);
   }
 
   type   = MIE_GRUNEISEN;
@@ -118,7 +117,7 @@ double VarFcnMG::GetDensity(double p, double e) const {
     if(b2m4ac<0) {
       fprintf(stderr, "*** Error: The M-G EOS is invalid for the given p(%e) and e(%e) --- unable to solve it for rho.\n",
               p, e);
-      exit_mpi();
+      exit(-1);
     }
 
     b2m4ac = sqrt(b2m4ac);
@@ -131,7 +130,7 @@ double VarFcnMG::GetDensity(double p, double e) const {
     if(rho1>0 || rho2<0) { //both are negative, or both are positive
       fprintf(stderr, "*** Error: Cannot determine the solution (rho) of the M-G EOS (rho1 = %e, rho2 = %e). \n", 
               rho1, rho2);
-      exit_mpi();
+      exit(-1);
     }
     
     return rho2; 
