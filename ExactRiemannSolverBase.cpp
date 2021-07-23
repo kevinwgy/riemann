@@ -755,15 +755,18 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
     double dp_max = 1.25*(p-ps)/numSteps_rarefaction;
     double dp_target = dp_max/1.25;
 
-    // initialize drho
-    double drho = rho/(numSteps_rarefaction*2.5); //initial step size
+    // initialize drho based on linear approximation
+    double e = vf[id]->GetInternalEnergyPerUnitMass(rho,p);
+    double dpdrho = vf[id]->GetDpdrho(rho,e);
+    double drho_op1 = (p-ps)/dpdrho; //use EOS
+    double drho_op2 = rho/(numSteps_rarefaction*2.5); //initial step size
+    double drho = std::min(drho_op1, drho_op2);
 
     // prepare for numerical integration
     double rhos_0 = rho, us_0 = u, ps_0 = p, xi_0; //start point of each step
     double rhos_1 = rho, us_1 = u, ps_1 = p, xi_1; //end point of each step
     double dp;
 
-    double e = vf[id]->GetInternalEnergyPerUnitMass(rho, p);
     double c = vf[id]->ComputeSoundSpeedSquare(rho, e);
 
     if(rho<=0 || c<0) {
@@ -789,21 +792,28 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
       bool success = Rarefaction_OneStepRK4(wavenumber/*1 or 3*/, id,
                              rhos_0, us_0, ps_0 /*start state*/, drho /*step size*/,
                              rhos_1, us_1, ps_1, xi_1 /*output: end state*/); 
+//      fprintf(stderr,"RK4 step: rhos_0 = %e, us_0 = %e, ps_0 = %e, drho = %e, rhos_1 = %e, us_1 = %e, ps_1 = %e | ps = %e | success = %d.\n",
+//              rhos_0, us_0, ps_0, drho, rhos_1, us_1, ps_1, ps, success);
       if(!success) {
         drho /= 2.0;
-        //fprintf(stderr," -- repeating the RK4 step, rhos0 = %e, rhos1 = %e, drho = %e (reduced by half).\n", rhos_0, rhos_1, drho);
         continue;
       }
 
       dp = ps_0 - ps_1;
 
       //Check if it went too far. If so, rewind and reduce step size
+//      fprintf(stderr,"RK4 step: -- dp = %e, dp_target = %e, dp_max = %e, ps_1 - ps = %e, tol_rarefaction = %e\n",
+//              dp, dp_target, dp_max, ps_1 - ps, tol_rarefaction);
+
       if(dp > dp_max) {
         drho = drho/dp*dp_target;
         continue;
       }
-      if(ps_1 - ps < -tol_rarefaction) {
-        drho = drho/dp*(ps_0 - ps);
+      if(ps_1 - ps < -tol_rarefaction) { //went over the hill...
+        if(dp!=0)
+          drho = drho/dp*(ps_0 - ps);
+        else
+          drho /= 2.0;
         continue;
       } 
 
@@ -851,7 +861,9 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
       // If the solver gets here, it means it hasn't reached the final pressure ps.
       // Adjust step size, then update state
       //
-      drho = std::min( (rhos_0-rhos_1)/dp*std::min(dp_target,ps_1-ps), //don't go beyond ps
+//      fprintf(stderr,"RK4 step: adjusting drho. old drho: %e, rhos_0 - rhos_1 = %e, a = %e, b = %e.\n", drho, rhos_0 - rhos_1, (rhos_0-rhos_1)/dp*std::min(dp_target,ps_1-ps), drho*4.0);
+
+      drho = std::min( drho/dp*std::min(dp_target,ps_1-ps), //don't go beyond ps
                        drho*4.0); //don't increase too much in one step
        
       rhos_0 = rhos_1;
@@ -862,10 +874,19 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
     }
 
     if(!done) {
+      if(vf[id]->CheckState(rhos_1,ps_1)) {
 #if PRINT_RIEMANN_SOLUTION == 1
-      cout << "  " << wavenumber << "-wave: rarefaction, solver failed!" << endl;
+        cout << "  " << wavenumber << "-wave: rarefaction, solver failed (unphysical state: rhos = "
+             << rhos_1 << ", ps = " << ps_1 << "!)" << endl;
 #endif
-      return false; //failed!
+        return false; //failed
+      } else {
+#if PRINT_RIEMANN_SOLUTION == 1
+        cout << "  " << wavenumber << "-wave: rarefaction, solver did not converge (final sol.: rhos_1 = "
+             << rhos_1 << ", ps_1 = " << ps_1 << "; inputs: rho = " << rho << ", p = " << p << ", ps = " << ps << ")" << endl;
+#endif
+        return true; 
+      }
     }
   }
 
@@ -1145,7 +1166,7 @@ ExactRiemannSolverBase::Rarefaction_OneStepRK4(int wavenumber/*1 or 3*/, int id,
   double du = 1.0/6.0*drho*( c_0/rho_0 + 2.0*(c_1/rho_1 + c_2/rho_2) + c_3/rho_3);
   u = (wavenumber == 1) ? u_0 - du : u_0 + du;
 
-  rho = rho_0 + drho;
+  rho = rho_0 + drho;  //KW: Note that if drho is tiny compared to rho_0, then rho = rho_0 due to roundoff (I have observed this!)
 
   double e = vf[id]->GetInternalEnergyPerUnitMass(rho, p);
   double c = vf[id]->ComputeSoundSpeedSquare(rho, e);

@@ -73,6 +73,10 @@ public:
   
   //checks that the Euler equations are still hyperbolic
   virtual bool CheckState(double rho, double p) const{
+    if(m2c_isnan(rho) || m2c_isnan(p)) {
+      fprintf(stderr, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
+      return true;
+    }
     if(rho <= 0.0) {
       if(verbose)
         fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", rho, p);
@@ -87,22 +91,15 @@ public:
     }
     return false;
   }
- 
+
   //checks that the Euler equations are still hyperbolic
   virtual bool CheckState(double *V) const{
-    return CheckState(V[0], V[4]);
-/*
-    double e = GetInternalEnergyPerUnitMass(V[0],V[4]);
-    double c2 = GetDpdrho(V[0], e) + V[4]/V[0]*GetBigGamma(V[0], e);
-    if(V[0] <=0.0 || c2<=0){
-      if(verbose)
-        fprintf(stdout, "Warning: Negative density or violation of hyperbolicity. rho = %e, p = %e.\n", V[0], V[4]);
+    if(m2c_isnan(V[0]) || m2c_isnan(V[1]) || m2c_isnan(V[2]) || m2c_isnan(V[3]) || m2c_isnan(V[4])) {
+      fprintf(stderr, "*** Error: CheckState failed. V = %e %e %e %e %e\n", V[0], V[1], V[2], V[3], V[4]);
       return true;
     }
-    return false;
-*/
+    return CheckState(V[0], V[4]); 
   }
-
  
   //----- Transformation Operators -----//
   inline void ConservativeToPrimitive(double *U, double *V); 

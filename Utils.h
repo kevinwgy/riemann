@@ -24,3 +24,8 @@ const string getCurrentDateTime();
 //--------------------------------------------------
 //! Call MPI_Finalize and exit (with error)
 void exit_mpi();
+//--------------------------------------------------
+//! Check for NAN
+template <class T>
+inline int m2c_isnan(const T& t) {return (t != t);}
+//--------------------------------------------------
