@@ -20,9 +20,9 @@ ExactRiemannSolverBase::ExactRiemannSolverBase(std::vector<VarFcnBase*> &vf_,
   maxIts_main          = iod_riemann.maxIts_main;
   maxIts_shock         = iod_riemann.maxIts_shock;
   numSteps_rarefaction = iod_riemann.numSteps_rarefaction;
-  tol_main             = iod_riemann.tol_main;
-  tol_shock            = iod_riemann.tol_shock;
-  tol_rarefaction      = iod_riemann.tol_rarefaction;
+  tol_main             = iod_riemann.tol_main; //applied to both pressure and velocity!
+  tol_shock            = iod_riemann.tol_shock; //a density tolerance
+  tol_rarefaction      = iod_riemann.tol_rarefaction; //a pressure tolerance
   min_pressure         = iod_riemann.min_pressure;
   failure_threshold    = iod_riemann.failure_threshold;
   pressure_at_failure  = iod_riemann.pressure_at_failure;
