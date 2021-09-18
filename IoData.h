@@ -130,6 +130,20 @@ struct CylinderConeData {
 
 //------------------------------------------------------------------------------
 
+struct CylinderHemisphereData {
+
+  double cen_x, cen_y, cen_z, nx, ny, nz, r, L;
+ 
+  StateVariable initialConditions;
+
+  CylinderHemisphereData();
+  ~CylinderHemisphereData() {}
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
 struct MultiInitialConditionsData {
 
   ObjectMap<PointData>    pointMap;
@@ -137,6 +151,7 @@ struct MultiInitialConditionsData {
   ObjectMap<SphereData>   sphereMap;
   ObjectMap<SpheroidData> spheroidMap;
   ObjectMap<CylinderConeData> cylinderconeMap;
+  ObjectMap<CylinderHemisphereData> cylinderhemisphereMap;
 
   void setup(const char *, ClassAssigner * = 0);
 };
@@ -158,7 +173,7 @@ struct MeshResolution1DPointData {
 
 struct MeshData {
 
-  enum Type {THREEDIMENSIONAL = 0, CYLINDRICAL = 1} type;
+  enum Type {THREEDIMENSIONAL = 0, SPHERICAL = 1, CYLINDRICAL = 2} type;
   double x0, xmax, y0, ymax, z0, zmax;
   int Nx, Ny, Nz;
 
@@ -174,6 +189,8 @@ struct MeshData {
   ~MeshData() {} 
 
   void setup(const char *, ClassAssigner * = 0);
+
+  void check(); //!< check input parameters (for spherical & cylindrical domains)
 };
 
 //------------------------------------------------------------------------------
@@ -181,9 +198,12 @@ struct MeshData {
 struct StiffenedGasModelData {
 
   double specificHeatRatio;
-  double idealGasConstant;
   double pressureConstant;
-  double specificHeatPressure;
+
+  //! parameters related to temperature
+  double cv; //!< specific heat at constant volume
+  double T0;  //!< temperature is T0 when internal energy (per mass) is e0
+  double e0;
 
   StiffenedGasModelData();
   ~StiffenedGasModelData() {}
@@ -279,14 +299,52 @@ struct MaterialModelData {
 
 //------------------------------------------------------------------------------
 
+struct MaterialTransitionData {
+
+  int from_id, to_id;
+
+  double temperature_lowerbound; //!< transition occurs if temperature is lower than this value
+  double temperature_upperbound; //!< transition occurs if temperature is higher than this value
+  double pressure_lowerbound;
+  double pressure_upperbound;
+
+  double latent_heat;
+
+  MaterialTransitionData();
+  ~MaterialTransitionData() {}
+
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
 struct EquationsData {
 
   ObjectMap<MaterialModelData> materials;
+
+  ObjectMap<MaterialTransitionData> transitions;
 
   EquationsData();
   ~EquationsData() {}
 
   void setup(const char *, ClassAssigner * = 0);
+};
+
+//------------------------------------------------------------------------------
+
+struct FixData {
+
+  ObjectMap<SphereData>   sphereMap;
+  ObjectMap<SpheroidData> spheroidMap;
+  ObjectMap<CylinderConeData> cylinderconeMap;
+  ObjectMap<CylinderHemisphereData> cylinderhemisphereMap;
+
+  FixData();
+  ~FixData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
 };
 
 //------------------------------------------------------------------------------
@@ -304,6 +362,9 @@ struct ReconstructionData {
   // can be different.
   enum VariableType {PRIMITIVE = 0, CONSERVATIVE = 1, PRIMITIVE_CHARACTERISTIC = 2,
                      CONSERVATIVE_CHARACTERISTIC = 3} varType;
+
+  //User-specified regions in which type is reset to CONSTANT
+  FixData fixes;
 
   ReconstructionData();
   ~ReconstructionData() {}
@@ -372,17 +433,51 @@ struct BoundarySchemeData {
 
 //------------------------------------------------------------------------------
 
+struct LevelSetReinitializationData {
+
+  int frequency; 
+  double frequency_dt;
+
+  int maxIts;
+
+  double cfl;
+
+  double convergence_tolerance;
+  
+  enum FirstLayerTreatment {FIXED = 0, 
+                            CONSTRAINED1 = 1, CONSTRAINED2 = 2, //CR-1 and CR-2,Hartmann (2008)
+                            ITERATIVE_CONSTRAINED1 = 3, ITERATIVE_CONSTRAINED2 = 4} //HCR-1&2,Hartmann 2010
+           firstLayerTreatment;
+
+  LevelSetReinitializationData();
+  ~LevelSetReinitializationData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
 struct LevelSetSchemeData {
 
   int materialid; //! The material in the phi<0 region ("inside")
 
-  enum Flux {ROE = 0, LOCAL_LAX_FRIEDRICHS = 1, UPWIND = 2} flux;
+  enum Solver {FINITE_VOLUME = 0, FINITE_DIFFERENCE = 1} solver;
 
+  enum FiniteDifferenceMethod {UPWIND_CENTRAL_3 = 0} fd;
+
+  enum Flux {ROE = 0, LOCAL_LAX_FRIEDRICHS = 1, UPWIND = 2} flux;
   ReconstructionData rec;
+
+  enum BcType {NONE = 0, ZERO_NEUMANN = 1, LINEAR_EXTRAPOLATION = 2, NON_NEGATIVE = 3, SIZE = 4};
+  BcType bc_x0, bc_xmax, bc_y0, bc_ymax, bc_z0, bc_zmax;
+
   
   double delta; //! The coeffient in Harten's entropy fix.
 
-  int reinitialization_freq; 
+  int bandwidth; //number of layers of nodes on each side of interface
+
+  LevelSetReinitializationData reinit;
 
   LevelSetSchemeData();
   ~LevelSetSchemeData() {}
@@ -593,6 +688,53 @@ struct IcData {
 
 //------------------------------------------------------------------------------
 
+struct LaserAbsorptionCoefficient {
+
+  int materialid;
+  double slope;
+  double T0;
+  double alpha0;
+
+  LaserAbsorptionCoefficient();
+  ~LaserAbsorptionCoefficient() {}
+
+  Assigner *getAssigner();
+};
+
+//------------------------------------------------------------------------------
+
+struct LaserData {
+
+  // physical parameters
+  double source_intensity; //!< radiance
+  enum SourceDistribution {CONSTANT = 0, GAUSSIAN = 1} source_distribution;
+  double source_power;
+  const char *source_power_timehistory_file;
+  double source_center_x, source_center_y, source_center_z;
+  double source_dir_x, source_dir_y, source_dir_z;
+  double source_radius;
+  double source_beam_waist;
+  double focusing_angle_degrees; //!< divering if <0
+  double range;
+  double lmin; //!< inside the laser domain (and ghosts), L>=lmin. (should be a tiny pos number.)
+  ObjectMap<LaserAbsorptionCoefficient> abs; //!< absorption coefficients
+
+  // numerical parameters
+  double source_depth;
+  double alpha;
+  double convergence_tol;
+  double max_iter;
+  double relax_coeff;
+  int oneWay;
+
+  LaserData();
+  ~LaserData() {}
+
+  void setup(const char *);
+
+};
+//------------------------------------------------------------------------------
+
 struct ProbeNode {
 
   double locationX;
@@ -616,7 +758,8 @@ struct Probes {
   double frequency_dt;
 
   enum Vars  {DENSITY = 0, VELOCITY_X = 1, VELOCITY_Y = 2, VELOCITY_Z = 3, PRESSURE = 4, TEMPERATURE = 5, 
-              MATERIALID = 6, LEVELSET0 = 7, LEVELSET1 = 8, LEVELSET2 = 9, LEVELSET3 = 10, LEVELSET4 = 11, SIZE = 12};
+              DELTA_TEMPERATURE = 6, MATERIALID = 7, LASERRADIANCE = 8, LEVELSET0 = 9, LEVELSET1 = 10, 
+              LEVELSET2 = 11, LEVELSET3 = 12, LEVELSET4 = 13, SIZE = 14};
 
   const char *density;
   const char *velocity_x;
@@ -624,7 +767,9 @@ struct Probes {
   const char *velocity_z;
   const char *pressure;
   const char *temperature;
+  const char *delta_temperature;
   const char *materialid;
+  const char *laser_radiance;
   const char *levelset0;
   const char *levelset1;
   const char *levelset2;
@@ -679,7 +824,7 @@ struct OutputData {
   const char *solution_filename_base; //!< filename without path
 
   enum Options {OFF = 0, ON = 1};
-  Options density, velocity, pressure, materialid, internal_energy, temperature;
+  Options density, velocity, pressure, materialid, internal_energy, temperature, delta_temperature, laser_radiance;
   enum VerbosityLevel {LOW = 0, MEDIUM = 1, HIGH = 2} verbose;
 
   const static int MAXLS = 5;
@@ -729,6 +874,8 @@ public:
   ExactRiemannSolverData exact_riemann;
 
   MultiPhaseData multiphase;
+
+  LaserData laser;
 
   TsData ts;
 

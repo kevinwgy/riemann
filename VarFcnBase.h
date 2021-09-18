@@ -7,8 +7,8 @@
 #include <iostream>
 
 /****************************************************************************
- * This class is the base class for the VarFcnEOS classes where EOS can be
- * a stiffened gas, a Tait EOS or a JWL EOS.
+ * This class is the base class for the VarFcn classes where EOS can be
+ * an arbitrary convex equation of state.
  * Only elementary functions are declared and/or defined here.
  * All arguments must be pertinent to only a single grid node or a single
  * state, since it is assumed that the EOS that must be used at this point 
@@ -77,6 +77,16 @@ public:
     print_error("*** Error:  GetTemperature Function not defined\n");
     exit(-1); return 0.0;}
 
+  //! temperature law, defined separately for each EOS
+  virtual double GetReferenceTemperature() const{
+    print_error("*** Error:  GetReferenceTemperature Function not defined\n");
+    exit(-1); return 0.0;}
+
+  //! temperature law, defined separately for each EOS
+  virtual double GetInternalEnergyPerUnitMassFromTemperature(double rho, double T) const{
+    print_error("*** Error:  GetInternalEnergyPerUnitMassFromTemperature Function not defined\n");
+    exit(-1); return 0.0;}
+
   //checks that the Euler equations are still hyperbolic
   virtual bool CheckState(double rho, double p) const{
     if(m2c_isnan(rho) || m2c_isnan(p)) {
@@ -107,6 +117,11 @@ public:
     return CheckState(V[0], V[4]); 
   }
  
+  //check for phase transitions
+  virtual bool CheckPhaseTransition(int id/*id of the other phase*/) const{
+    return false; //by default, phase transition is not allowed/considered
+  }
+
   //----- Transformation Operators -----//
   inline void ConservativeToPrimitive(double *U, double *V); 
   inline void PrimitiveToConservative(double *V, double *U);
@@ -117,6 +132,7 @@ public:
   inline double ComputeSoundSpeed(double rho, double e);
   inline double ComputeSoundSpeedSquare(double rho, double e); //!< this one does not crash on negative c^2
   inline double ComputeMachNumber(double *V);
+  inline double ComputeEnthalpyPerUnitMass(double rho, double p); //!< h = e + p/rho
   inline double ComputeTotalEnthalpyPerUnitMass(double *V); //!< H = 1/rho*(E + p)
 
   // Clipping
@@ -194,6 +210,14 @@ double VarFcnBase::ComputeMachNumber(double *V)
     c = sqrt(c);
 
   return sqrt(V[1]*V[1]+V[2]*V[2]+V[3]*V[3])/c;
+}
+
+//------------------------------------------------------------------------------
+
+inline
+double VarFcnBase::ComputeEnthalpyPerUnitMass(double rho, double p)
+{
+  return GetInternalEnergyPerUnitMass(rho,p) + p/rho;
 }
 
 //------------------------------------------------------------------------------
