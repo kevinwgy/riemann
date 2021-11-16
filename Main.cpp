@@ -85,7 +85,8 @@ int main(int argc, char* argv[])
 
   int id;
   double Vsm[5], Vsp[5];
-  riemann.ComputeRiemannSolution(0, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
+  double dir[3] = {1.0, 0.0, 0.0};
+  riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
 
   print("\n");
   print("\033[0;32m==========================================\033[0m\n");
