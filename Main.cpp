@@ -86,7 +86,12 @@ int main(int argc, char* argv[])
   int id;
   double Vsm[5], Vsp[5];
   double dir[3] = {1.0, 0.0, 0.0};
-  riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
+  int err = riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
+
+  if(err) {
+    print("Warning: Riemann solver failed to find an initial bracketing interval. "
+          "Providing an approximate solution.\n");
+  }
 
   print("\n");
   print("\033[0;32m==========================================\033[0m\n");
