@@ -16,6 +16,8 @@
 //#include <dlfcn.h>
 using namespace std;
 
+double avogadro_number = 6.02214076e23;
+
 RootClassAssigner *nullAssigner = new RootClassAssigner;
 
 //------------------------------------------------------------------------------
@@ -223,7 +225,7 @@ Assigner *CylinderConeData::getAssigner()
 
 //------------------------------------------------------------------------------
 
-CylinderHemisphereData::CylinderHemisphereData() {
+CylinderSphereData::CylinderSphereData() {
 
   cen_x  = 0.0;
   cen_y  = 0.0;
@@ -234,22 +236,32 @@ CylinderHemisphereData::CylinderHemisphereData() {
 
   r = 1.0;
   L = 0.0;
+
+  front_cap = Off;
+  back_cap = Off;
+
 }
 
 //------------------------------------------------------------------------------
 
-Assigner *CylinderHemisphereData::getAssigner()
+Assigner *CylinderSphereData::getAssigner()
 {
-  ClassAssigner *ca = new ClassAssigner("normal", 9, nullAssigner);
+  ClassAssigner *ca = new ClassAssigner("normal", 11, nullAssigner);
 
-  new ClassDouble<CylinderHemisphereData> (ca, "Axis_x", this, &CylinderHemisphereData::nx);
-  new ClassDouble<CylinderHemisphereData> (ca, "Axis_y", this, &CylinderHemisphereData::ny);
-  new ClassDouble<CylinderHemisphereData> (ca, "Axis_z", this, &CylinderHemisphereData::nz);
-  new ClassDouble<CylinderHemisphereData> (ca, "BaseCenter_x", this, &CylinderHemisphereData::cen_x);
-  new ClassDouble<CylinderHemisphereData> (ca, "BaseCenter_y", this, &CylinderHemisphereData::cen_y);
-  new ClassDouble<CylinderHemisphereData> (ca, "BaseCenter_z", this, &CylinderHemisphereData::cen_z);
-  new ClassDouble<CylinderHemisphereData> (ca, "CylinderRadius", this, &CylinderHemisphereData::r);
-  new ClassDouble<CylinderHemisphereData> (ca, "CylinderHeight", this, &CylinderHemisphereData::L);
+  new ClassDouble<CylinderSphereData> (ca, "Axis_x", this, &CylinderSphereData::nx);
+  new ClassDouble<CylinderSphereData> (ca, "Axis_y", this, &CylinderSphereData::ny);
+  new ClassDouble<CylinderSphereData> (ca, "Axis_z", this, &CylinderSphereData::nz);
+  new ClassDouble<CylinderSphereData> (ca, "CylinderCenter_x", this, &CylinderSphereData::cen_x);
+  new ClassDouble<CylinderSphereData> (ca, "CylinderCenter_y", this, &CylinderSphereData::cen_y);
+  new ClassDouble<CylinderSphereData> (ca, "CylinderCenter_z", this, &CylinderSphereData::cen_z);
+  new ClassDouble<CylinderSphereData> (ca, "CylinderRadius", this, &CylinderSphereData::r);
+  new ClassDouble<CylinderSphereData> (ca, "CylinderHeight", this, &CylinderSphereData::L);
+  new ClassToken<CylinderSphereData> (ca, "FrontSphericalCap", this,
+     reinterpret_cast<int CylinderSphereData::*>(&CylinderSphereData::front_cap), 2,
+     "Off", 0, "On", 1);
+  new ClassToken<CylinderSphereData> (ca, "BackSphericalCap", this,
+     reinterpret_cast<int CylinderSphereData::*>(&CylinderSphereData::back_cap), 2,
+     "Off", 0, "On", 1);
 
   initialConditions.setup("InitialState", ca);
 
@@ -266,7 +278,7 @@ void MultiInitialConditionsData::setup(const char *name, ClassAssigner *father)
   sphereMap.setup("Sphere", ca);
   spheroidMap.setup("Spheroid", ca);
   cylinderconeMap.setup("CylinderAndCone", ca);
-  cylinderhemisphereMap.setup("CylinderAndHemisphere", ca);
+  cylindersphereMap.setup("CylinderWithSphericalCaps", ca);
 }
 
 //------------------------------------------------------------------------------
@@ -425,6 +437,9 @@ StiffenedGasModelData::StiffenedGasModelData()
   T0 = 0.0;
   e0 = 0.0;
 
+  cp = 0.0;
+  h0 = 0.0;
+
 }
 
 //------------------------------------------------------------------------------
@@ -432,7 +447,7 @@ StiffenedGasModelData::StiffenedGasModelData()
 void StiffenedGasModelData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 5, father);
+  ClassAssigner *ca = new ClassAssigner(name, 7, father);
 
   new ClassDouble<StiffenedGasModelData>(ca, "SpecificHeatRatio", this,
                                 &StiffenedGasModelData::specificHeatRatio);
@@ -446,6 +461,10 @@ void StiffenedGasModelData::setup(const char *name, ClassAssigner *father)
   new ClassDouble<StiffenedGasModelData>(ca, "ReferenceSpecificInternalEnergy", this,
                                 &StiffenedGasModelData::e0);
 
+  new ClassDouble<StiffenedGasModelData>(ca, "SpecificHeatAtConstantPressure", this,
+                                &StiffenedGasModelData::cp);
+  new ClassDouble<StiffenedGasModelData>(ca, "ReferenceSpecificEnthalpy", this,
+                                &StiffenedGasModelData::h0);
 }
 
 //------------------------------------------------------------------------------
@@ -467,6 +486,9 @@ MieGruneisenModelData::MieGruneisenModelData()
   e0 = 0.0;         
 
   cv = 3.90e8;          // unit: mm2/(s2.K)
+  cp = 0.0;
+  h0 = 0.0;
+  T0 = 0.0;
 }
 
 //------------------------------------------------------------------------------
@@ -474,7 +496,7 @@ MieGruneisenModelData::MieGruneisenModelData()
 void MieGruneisenModelData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 6, father);
+  ClassAssigner *ca = new ClassAssigner(name, 9, father);
 
   new ClassDouble<MieGruneisenModelData>(ca, "ReferenceDensity", this, 
                                          &MieGruneisenModelData::rho0);
@@ -486,8 +508,14 @@ void MieGruneisenModelData::setup(const char *name, ClassAssigner *father)
                                          &MieGruneisenModelData::s);
   new ClassDouble<MieGruneisenModelData>(ca, "ReferenceGamma", this, 
                                          &MieGruneisenModelData::Gamma0);
-  new ClassDouble<MieGruneisenModelData>(ca, "ReferenceInternalEnergyPerMass", this, 
+  new ClassDouble<MieGruneisenModelData>(ca, "ReferenceSpecificInternalEnergy", this, 
                                          &MieGruneisenModelData::e0);
+  new ClassDouble<MieGruneisenModelData>(ca, "SpecificHeatAtConstantPressure", this,
+                                         &MieGruneisenModelData::cp);
+  new ClassDouble<MieGruneisenModelData>(ca, "ReferenceSpecificEnthalpy", this,
+                                         &MieGruneisenModelData::h0);
+  new ClassDouble<MieGruneisenModelData>(ca, "ReferenceTemperature", this,
+                                         &MieGruneisenModelData::T0);
 
 }
 
@@ -533,8 +561,10 @@ MaterialModelData::MaterialModelData()
 {
 
   eos = STIFFENED_GAS;
-  rhomin = -1.0e-14; // By default, density cannot be zero or negative
+  rhomin = 0.0; // By default, density cannot be zero or negative
   pmin = -DBL_MAX;   // By default, no clipping
+  rhomax = DBL_MAX;
+  pmax = DBL_MAX;
 
   failsafe_density = 0.0; //Giving it a nonphysical density by default (i.e. not used)
 
@@ -545,7 +575,7 @@ MaterialModelData::MaterialModelData()
 Assigner *MaterialModelData::getAssigner()
 {
 
-  ClassAssigner *ca = new ClassAssigner("normal", 8, nullAssigner);
+  ClassAssigner *ca = new ClassAssigner("normal", 10, nullAssigner);
 
   new ClassToken<MaterialModelData>(ca, "EquationOfState", this,
                                  reinterpret_cast<int MaterialModelData::*>(&MaterialModelData::eos), 3,
@@ -554,6 +584,8 @@ Assigner *MaterialModelData::getAssigner()
                                  "JonesWilkinsLee", MaterialModelData::JWL);
   new ClassDouble<MaterialModelData>(ca, "DensityCutOff", this, &MaterialModelData::rhomin);
   new ClassDouble<MaterialModelData>(ca, "PressureCutOff", this, &MaterialModelData::pmin);
+  new ClassDouble<MaterialModelData>(ca, "DensityUpperLimit", this, &MaterialModelData::rhomax);
+  new ClassDouble<MaterialModelData>(ca, "PressureUpperLimit", this, &MaterialModelData::pmax);
 
   new ClassDouble<MaterialModelData>(ca, "DensityPrescribedAtFailure", this, &MaterialModelData::failsafe_density);
 
@@ -621,7 +653,7 @@ MaterialTransitionData::MaterialTransitionData()
 {
   from_id = -1;
   to_id = -1;
-  temperature_lowerbound = -DBL_MAX;
+  temperature_lowerbound = 0.0;
   temperature_upperbound = DBL_MAX;
   pressure_lowerbound = -DBL_MAX;
   pressure_upperbound = DBL_MAX;
@@ -781,7 +813,7 @@ void FixData::setup(const char *name, ClassAssigner *father)
   sphereMap.setup("Sphere", ca);
   spheroidMap.setup("Spheroid", ca);
   cylinderconeMap.setup("CylinderAndCone", ca);
-  cylinderhemisphereMap.setup("CylinderAndHemisphere", ca);
+  cylindersphereMap.setup("CylinderWithSphericalCaps", ca);
 }
 
 //------------------------------------------------------------------------------
@@ -980,6 +1012,7 @@ void SchemesData::setup(const char *name, ClassAssigner *father)
 ExactRiemannSolverData::ExactRiemannSolverData()
 {
   maxIts_main = 200;
+  maxIts_bracket = 100;
   maxIts_shock = 200;
   numSteps_rarefaction = 100;
   tol_main = 1.0e-4; //applied to both pressure and velocity
@@ -995,10 +1028,13 @@ ExactRiemannSolverData::ExactRiemannSolverData()
 void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 9, father);
+  ClassAssigner *ca = new ClassAssigner(name, 10, father);
 
   new ClassInt<ExactRiemannSolverData>(ca, "MaxIts", this, 
                                        &ExactRiemannSolverData::maxIts_main);
+
+  new ClassInt<ExactRiemannSolverData>(ca, "MaxItsBracketing", this, 
+                                       &ExactRiemannSolverData::maxIts_bracket);
 
   new ClassInt<ExactRiemannSolverData>(ca, "MaxItsShock", this, 
                                        &ExactRiemannSolverData::maxIts_shock);
@@ -1033,6 +1069,12 @@ MultiPhaseData::MultiPhaseData()
   flux = NUMERICAL;
   recon = CONSTANT;
   phasechange_type = RIEMANN_SOLUTION;
+
+  riemann_normal = MESH;
+
+  latent_heat_transfer = Off;
+
+  levelset_correction_frequency = -1;
 }
 
 //------------------------------------------------------------------------------
@@ -1040,7 +1082,7 @@ MultiPhaseData::MultiPhaseData()
 void MultiPhaseData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 3, father);
+  ClassAssigner *ca = new ClassAssigner(name, 6, father);
 
   new ClassToken<MultiPhaseData>
     (ca, "Flux", this,
@@ -1056,6 +1098,19 @@ void MultiPhaseData::setup(const char *name, ClassAssigner *father)
     (ca, "PhaseChange", this,
      reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::phasechange_type), 2,
      "RiemannSolution", 0, "Extrapolation", 1);
+
+  new ClassToken<MultiPhaseData>
+    (ca, "RiemannNormal", this,
+     reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::riemann_normal), 3,
+     "LevelSet", 0, "Mesh", 1, "Average", 2);
+
+  new ClassToken<MultiPhaseData>
+    (ca, "LatentHeatTransfer", this,
+     reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::latent_heat_transfer), 2,
+     "Off", 0, "On", 1);
+
+  new ClassInt<MultiPhaseData>(ca, "LevelSetCorrectionFrequency", 
+        this, &MultiPhaseData::levelset_correction_frequency);
 
 }
 
@@ -1276,7 +1331,7 @@ void IcData::readUserSpecifiedIC()
   std::fstream input;
   input.open(user_specified_ic, std::fstream::in);
   if (!input.is_open()) {
-    print_error("*** Error: could not open user-specified initial condition file %s.\n", user_specified_ic);
+    print_error("*** Error: Cannot open user-specified initial condition file %s.\n", user_specified_ic);
     exit_mpi();
   } else
     print("- Reading user-specified initial condition file: %s.\n", user_specified_ic);
@@ -1852,21 +1907,23 @@ LaserData::LaserData() {
 
   lmin = 1.0e-12;
 
+  parallel = BALANCED;
+  min_cells_per_core = 100;
+
   source_depth = 0.0;
   alpha = 1.0;
-  convergence_tol = 1.0e-4;
-  max_iter = 100;
+  convergence_tol = 1.0e-5;
+  max_iter = 400;
   relax_coeff = 1.0;
-  oneWay = 0;
 
 }
 
 //------------------------------------------------------------------------------
 
 
-void LaserData::setup(const char *name) {
+void LaserData::setup(const char *name, ClassAssigner *father) {
 
-  ClassAssigner *ca = new ClassAssigner(name, 22, NULL); 
+  ClassAssigner *ca = new ClassAssigner(name, 23, father); 
 
   //Physical Parameters
   new ClassDouble<LaserData>(ca, "SourceIntensity", this, &LaserData::source_intensity);
@@ -1888,13 +1945,148 @@ void LaserData::setup(const char *name) {
 
   abs.setup("AbsorptionCoefficient", ca);
 
+  //Parallelization approach
+  new ClassToken<LaserData> (ca, "Parallelization", this,
+        reinterpret_cast<int LaserData::*>(&LaserData::parallel), 2, "Original", 0, "Balanced", 1);
+  new ClassInt<LaserData>(ca, "NumberOfCellsPerCore", this, &LaserData::min_cells_per_core);
+
   //Numerical Parameters
   new ClassDouble<LaserData>(ca, "SourceDepth", this, &LaserData::source_depth);
   new ClassDouble<LaserData>(ca, "Alpha", this, &LaserData::alpha);
   new ClassDouble<LaserData>(ca, "ConvergenceTolerance", this, &LaserData::convergence_tol);
   new ClassDouble<LaserData>(ca, "MaxIts", this, &LaserData::max_iter);
   new ClassDouble<LaserData>(ca, "RelaxationCoefficient", this, &LaserData::relax_coeff);
-  new ClassInt<LaserData>(ca, "OneWayCoupling", this, &LaserData::oneWay);
+
+}
+
+//------------------------------------------------------------------------------
+
+AtomicIonizationModel::AtomicIonizationModel()
+{
+  molar_fraction = -1.0;
+  molar_mass = -1.0;
+  atomic_number = -1;
+  max_charge = 10;
+  ionization_energy_filename = "";
+  excitation_energy_files_prefix = "";
+  excitation_energy_files_suffix = "";
+  degeneracy_files_prefix = ""; 
+  degeneracy_files_suffix = ""; 
+}
+
+//------------------------------------------------------------------------------
+
+Assigner* AtomicIonizationModel::getAssigner()
+{
+
+  ClassAssigner *ca = new ClassAssigner("normal", 9, nullAssigner);
+
+  new ClassDouble<AtomicIonizationModel>(ca, "MolarFraction", this, 
+          &AtomicIonizationModel::molar_fraction);
+  
+  new ClassDouble<AtomicIonizationModel>(ca, "MolarMass", this, 
+          &AtomicIonizationModel::molar_mass);
+  
+  new ClassInt<AtomicIonizationModel>(ca, "AtomicNumber", this, 
+          &AtomicIonizationModel::atomic_number);
+  
+  new ClassInt<AtomicIonizationModel>(ca, "MaxChargeNumber", this, 
+          &AtomicIonizationModel::max_charge);
+  
+  new ClassStr<AtomicIonizationModel>(ca, "IonizationEnergyFile", this, 
+          &AtomicIonizationModel::ionization_energy_filename);
+
+  new ClassStr<AtomicIonizationModel>(ca, "ExcitationEnergyFilesPrefix", this, 
+          &AtomicIonizationModel::excitation_energy_files_prefix);
+
+  new ClassStr<AtomicIonizationModel>(ca, "ExcitationEnergyFilesSuffix", this, 
+          &AtomicIonizationModel::excitation_energy_files_suffix);
+
+  new ClassStr<AtomicIonizationModel>(ca, "DegeneracyFilesPrefix", this, 
+          &AtomicIonizationModel::degeneracy_files_prefix);
+
+  new ClassStr<AtomicIonizationModel>(ca, "DegeneracyFilesSuffix", this, 
+          &AtomicIonizationModel::degeneracy_files_suffix);
+
+  return ca;
+
+}
+
+//------------------------------------------------------------------------------
+
+MaterialIonizationModel::MaterialIonizationModel()
+{
+  type = NONE;
+  maxIts = 200;
+  convergence_tol = 1.0e-5;
+
+  ionization_Tmin = 400; //Kelvin
+
+  partition_evaluation = CUBIC_SPLINE_INTERPOLATION;
+
+  sample_size = 6000;
+  sample_Tmin = 10.0; //Kelvin
+  sample_Tmax = 1.0e10; //Kelvin
+}
+
+//------------------------------------------------------------------------------
+
+Assigner* MaterialIonizationModel::getAssigner()
+{
+  ClassAssigner *ca = new ClassAssigner("normal", 9, nullAssigner);
+
+  new ClassToken<MaterialIonizationModel> (ca, "Type", this,
+        reinterpret_cast<int MaterialIonizationModel::*>(&MaterialIonizationModel::type), 
+        3, "None", 0, "IdealSahaEquation", 1, "NonIdealSahaEquation", 2);
+
+  new ClassToken<MaterialIonizationModel> (ca, "PartitionFunctionEvaluation", this,
+        reinterpret_cast<int MaterialIonizationModel::*>(&MaterialIonizationModel::partition_evaluation), 
+        3, "OnTheFly", 0, "CubicSplineInterpolation", 1, "LinearInterpolation", 2);
+
+  new ClassDouble<MaterialIonizationModel>(ca, "Tmin", this, 
+        &MaterialIonizationModel::ionization_Tmin);
+
+  new ClassDouble<MaterialIonizationModel>(ca, "SampleTmin", this, 
+        &MaterialIonizationModel::sample_Tmin);
+
+  new ClassDouble<MaterialIonizationModel>(ca, "SampleTmax", this, 
+        &MaterialIonizationModel::sample_Tmax);
+
+  new ClassInt<MaterialIonizationModel>(ca, "SampleSize", this, &MaterialIonizationModel::sample_size);
+
+  new ClassInt<MaterialIonizationModel>(ca, "MaxIts", this, &MaterialIonizationModel::maxIts);
+
+  new ClassDouble<MaterialIonizationModel>(ca, "ConvergenceTolerance", this, 
+        &MaterialIonizationModel::convergence_tol);
+
+  elementMap.setup("Element", ca);
+
+  return ca;
+}
+
+//------------------------------------------------------------------------------
+
+IonizationData::IonizationData()
+{
+  planck_constant = 6.62607004e-25;  //unit: (mm^2).g/s  (dim: [energy]/[freq])
+  electron_charge = 1.60217662e-19;  //unit: A.s (Coulombs)
+  electron_mass = 9.10938356e-28; //unit: g
+  boltzmann_constant = 1.38064852e-14; //unit: (mm^2).g/(s^2*K)  (dim: [energy]/[temperature])
+}
+
+//------------------------------------------------------------------------------
+
+void IonizationData::setup(const char *name, ClassAssigner *father)
+{
+
+  ClassAssigner *ca = new ClassAssigner(name, 5, father);
+
+  new ClassDouble<IonizationData>(ca, "PlanckConstant", this, &IonizationData::planck_constant);
+  new ClassDouble<IonizationData>(ca, "ElectronCharge", this, &IonizationData::electron_charge);
+  new ClassDouble<IonizationData>(ca, "ElectronMass", this, &IonizationData::electron_mass);
+  new ClassDouble<IonizationData>(ca, "BoltzmannConstant", this, &IonizationData::boltzmann_constant);
+
+  materialMap.setup("Material", ca);
 
 }
 
@@ -1947,6 +2139,19 @@ OutputData::OutputData()
   for(int i=0; i<MAXLS; i++)
     levelset[i] = OFF;
 
+  mean_charge = OFF;
+  heavy_particles_density = OFF;
+  electron_density = OFF;
+  max_charge_number = 3;
+  molar_fractions0 = OFF; 
+  molar_fractions1 = OFF; 
+  molar_fractions2 = OFF; 
+  molar_fractions3 = OFF; 
+  molar_fractions4 = OFF; 
+
+  for(int i=0; i<MAXSPECIES; i++)
+    molar_fractions[i] = OFF;
+
   mesh_filename = "";
 
   verbose = LOW;
@@ -1956,7 +2161,7 @@ OutputData::OutputData()
 
 void OutputData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 17+MAXLS, father);
+  ClassAssigner *ca = new ClassAssigner(name, 21+MAXLS+MAXSPECIES, father);
 
   new ClassStr<OutputData>(ca, "Prefix", this, &OutputData::prefix);
   new ClassStr<OutputData>(ca, "Solution", this, &OutputData::solution_filename_base);
@@ -2003,6 +2208,34 @@ void OutputData::setup(const char *name, ClassAssigner *father)
                                "Off", 0, "On", 1);
   new ClassToken<OutputData>(ca, "LevelSet4", this,
                                reinterpret_cast<int OutputData::*>(&OutputData::levelset4), 2,
+                               "Off", 0, "On", 1);
+
+  new ClassToken<OutputData>(ca, "MeanCharge", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::mean_charge), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "HeavyParticlesDensity", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::heavy_particles_density), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "ElectronDensity", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::electron_density), 2,
+                               "Off", 0, "On", 1);
+
+  new ClassInt<OutputData>(ca, "MaxChargeNumber", this, &OutputData::max_charge_number);
+
+  new ClassToken<OutputData>(ca, "MolarFractionsElement0", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::molar_fractions0), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "MolarFractionsElement1", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::molar_fractions1), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "MolarFractionsElement2", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::molar_fractions2), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "MolarFractionsElement3", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::molar_fractions3), 2,
+                               "Off", 0, "On", 1);
+  new ClassToken<OutputData>(ca, "MolarFractionsElement4", this,
+                               reinterpret_cast<int OutputData::*>(&OutputData::molar_fractions4), 2,
                                "Off", 0, "On", 1);
 
   new ClassStr<OutputData>(ca, "MeshInformation", this, &OutputData::mesh_filename);
@@ -2058,6 +2291,7 @@ Probes::Probes() {
   levelset2 = "";
   levelset3 = "";
   levelset4 = "";
+  ionization_result = "";
 
 }
 
@@ -2066,7 +2300,7 @@ Probes::Probes() {
 void Probes::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 17, father);
+  ClassAssigner *ca = new ClassAssigner(name, 18, father);
 
   new ClassInt<Probes>(ca, "Frequency", this, &Probes::frequency);
   new ClassDouble<Probes>(ca, "TimeInterval", this, &Probes::frequency_dt);
@@ -2084,6 +2318,7 @@ void Probes::setup(const char *name, ClassAssigner *father)
   new ClassStr<Probes>(ca, "LevelSet2", this, &Probes::levelset2);
   new ClassStr<Probes>(ca, "LevelSet3", this, &Probes::levelset3);
   new ClassStr<Probes>(ca, "LevelSet4", this, &Probes::levelset4);
+  new ClassStr<Probes>(ca, "IonizationResult", this, &Probes::ionization_result);
 
   myNodes.setup("Node", ca);
 
@@ -2183,6 +2418,13 @@ void IoData::readCmdFile()
   output.levelset[2] = output.levelset2;
   output.levelset[3] = output.levelset3;
   output.levelset[4] = output.levelset4;
+
+  //FIX elemental molar fractions (TODO: need a better way...)
+  output.molar_fractions[0] = output.molar_fractions0;
+  output.molar_fractions[1] = output.molar_fractions1;
+  output.molar_fractions[2] = output.molar_fractions2;
+  output.molar_fractions[3] = output.molar_fractions3;
+  output.molar_fractions[4] = output.molar_fractions4;
 }
 
 //------------------------------------------------------------------------------
@@ -2190,6 +2432,8 @@ void IoData::readCmdFile()
 void IoData::setupCmdFileVariables()
 {
   eqs.setup("Equations");
+  eqs.setup("NavierStokesEquations");
+
   ic.setup("InitialCondition");
   bc.setup("BoundaryConditions");
 
@@ -2200,6 +2444,8 @@ void IoData::setupCmdFileVariables()
   exact_riemann.setup("ExactRiemannSolution");
 
   laser.setup("Laser");
+
+  ion.setup("Ionization");
 
   ts.setup("Time");
 

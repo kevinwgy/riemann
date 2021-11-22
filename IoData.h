@@ -130,14 +130,18 @@ struct CylinderConeData {
 
 //------------------------------------------------------------------------------
 
-struct CylinderHemisphereData {
+struct CylinderSphereData {
 
   double cen_x, cen_y, cen_z, nx, ny, nz, r, L;
  
+  enum OnOff {Off = 0, On = 1};
+  OnOff front_cap;
+  OnOff back_cap;
+
   StateVariable initialConditions;
 
-  CylinderHemisphereData();
-  ~CylinderHemisphereData() {}
+  CylinderSphereData();
+  ~CylinderSphereData() {}
   Assigner *getAssigner();
 
 };
@@ -151,7 +155,7 @@ struct MultiInitialConditionsData {
   ObjectMap<SphereData>   sphereMap;
   ObjectMap<SpheroidData> spheroidMap;
   ObjectMap<CylinderConeData> cylinderconeMap;
-  ObjectMap<CylinderHemisphereData> cylinderhemisphereMap;
+  ObjectMap<CylinderSphereData> cylindersphereMap;
 
   void setup(const char *, ClassAssigner * = 0);
 };
@@ -203,7 +207,14 @@ struct StiffenedGasModelData {
   //! parameters related to temperature
   double cv; //!< specific heat at constant volume
   double T0;  //!< temperature is T0 when internal energy (per mass) is e0
-  double e0;
+  double e0;  //!< internal energy per specific mass at T0
+
+  double cp; //!< specific heat at constant pressure
+  double h0; //!< enthalpy per specific mass at T0
+  //NOTE: For stiffened (non-perfect) gas, calculating temperature using (cv, T0, e0) is NOT
+  //      equivalent to using (cp, T0, h0). See KW's note. By default, cv is used. But if cv
+  //      is 0 while cp>0, cp will be used.
+ 
 
   StiffenedGasModelData();
   ~StiffenedGasModelData() {}
@@ -222,7 +233,12 @@ struct MieGruneisenModelData {
   double s;
   double e0;
 
-  double cv; 
+  //! parameters related to temperature
+  double cv; //!< specific heat at constant volume
+  double T0;  //!< temperature is T0 when internal energy (per mass) is e0
+
+  double cp; //!< specific heat at constant pressure
+  double h0; //!< enthalpy per specific mass at T0
 
   MieGruneisenModelData();
   ~MieGruneisenModelData() {}
@@ -281,6 +297,8 @@ struct MaterialModelData {
   enum EOS {STIFFENED_GAS = 0, MIE_GRUNEISEN = 1, JWL = 2} eos;
   double rhomin;
   double pmin;
+  double rhomax;
+  double pmax;
 
   double failsafe_density; //for updating phase change -- last resort
 
@@ -338,7 +356,7 @@ struct FixData {
   ObjectMap<SphereData>   sphereMap;
   ObjectMap<SpheroidData> spheroidMap;
   ObjectMap<CylinderConeData> cylinderconeMap;
-  ObjectMap<CylinderHemisphereData> cylinderhemisphereMap;
+  ObjectMap<CylinderSphereData> cylindersphereMap;
 
   FixData();
   ~FixData() {}
@@ -507,6 +525,7 @@ struct SchemesData {
 struct ExactRiemannSolverData {
 
   int maxIts_main;
+  int maxIts_bracket;
   int maxIts_shock;
   int numSteps_rarefaction;
   double tol_main;
@@ -537,6 +556,18 @@ struct MultiPhaseData {
   enum ReconstructionAtInterface {CONSTANT = 0, LINEAR = 1} recon;
 
   enum PhaseChangeType {RIEMANN_SOLUTION = 0, EXTRAPOLATION = 1} phasechange_type;
+
+  enum RiemannNormal {LEVEL_SET = 0, MESH = 1, AVERAGE = 2} riemann_normal;
+
+  enum OnOff {Off = 0, On = 1};
+  OnOff latent_heat_transfer; //!< whether stored latent heat would be added to the enthalpy
+                              //Note: In the case of a "physical" phase transition, the
+                              //      latent heat is always added to the enthalpy. The option here
+                              //      is about whether this operation will be done if a phase
+                              //      change occurs due to the motion of material interface(s).
+
+  int levelset_correction_frequency; //!< frequency of eliminating small gaps or inconsistencies
+                                     //   between multiple level set functions
 
   MultiPhaseData();
   ~MultiPhaseData() {}
@@ -719,20 +750,96 @@ struct LaserData {
   double lmin; //!< inside the laser domain (and ghosts), L>=lmin. (should be a tiny pos number.)
   ObjectMap<LaserAbsorptionCoefficient> abs; //!< absorption coefficients
 
+  // parallel solution approach
+  enum Parallelization {ORIGINAL = 0, BALANCED = 1} parallel;
+  int min_cells_per_core;
+
   // numerical parameters
   double source_depth;
   double alpha;
   double convergence_tol;
   double max_iter;
   double relax_coeff;
-  int oneWay;
 
   LaserData();
   ~LaserData() {}
 
-  void setup(const char *);
+  void setup(const char *, ClassAssigner * = 0);
 
 };
+
+//------------------------------------------------------------------------------
+
+struct AtomicIonizationModel {
+
+  double molar_fraction;
+  int    atomic_number;
+  double molar_mass;
+
+  int max_charge;
+
+  const char* ionization_energy_filename; //!< file that stores ionization energies
+  
+  const char* excitation_energy_files_prefix; //!< prefix of files that contain excitation energies (for different excited states)
+  const char* excitation_energy_files_suffix;
+
+  const char* degeneracy_files_prefix; //!< prefix of files that contain degeneracy (for different excited states)
+  const char* degeneracy_files_suffix;
+
+  AtomicIonizationModel();
+  ~AtomicIonizationModel() {}
+
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
+struct MaterialIonizationModel{
+
+  enum Type {NONE = 0, SAHA_IDEAL = 1, SAHA_NONIDEAL = 2, SIZE = 3} type;
+
+  int maxIts;
+  double convergence_tol;
+
+  enum PartitionFunctionEvaluation {ON_THE_FLY = 0, CUBIC_SPLINE_INTERPOLATION = 1,
+                                    LINEAR_INTERPOLATION = 2} partition_evaluation;
+  
+  //! Tmin is still used as a threshold, below which
+  //! calculation will not be performed (i.e. ionization will not happen)
+  double ionization_Tmin;
+
+  // numerical parameters for sampling & interpolating the partition function
+  double sample_Tmin, sample_Tmax;
+  int sample_size;
+
+  ObjectMap<AtomicIonizationModel> elementMap;
+  
+  MaterialIonizationModel();
+  ~MaterialIonizationModel() {}
+
+  Assigner *getAssigner();
+};
+
+//------------------------------------------------------------------------------
+
+struct IonizationData {
+
+  // global constants
+  double planck_constant;
+  double electron_charge; //needed?
+  double electron_mass;
+  double boltzmann_constant;
+  
+  ObjectMap<MaterialIonizationModel> materialMap;
+  
+  IonizationData();
+  ~IonizationData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
 //------------------------------------------------------------------------------
 
 struct ProbeNode {
@@ -759,7 +866,7 @@ struct Probes {
 
   enum Vars  {DENSITY = 0, VELOCITY_X = 1, VELOCITY_Y = 2, VELOCITY_Z = 3, PRESSURE = 4, TEMPERATURE = 5, 
               DELTA_TEMPERATURE = 6, MATERIALID = 7, LASERRADIANCE = 8, LEVELSET0 = 9, LEVELSET1 = 10, 
-              LEVELSET2 = 11, LEVELSET3 = 12, LEVELSET4 = 13, SIZE = 14};
+              LEVELSET2 = 11, LEVELSET3 = 12, LEVELSET4 = 13, IONIZATION = 14, SIZE = 15};
 
   const char *density;
   const char *velocity_x;
@@ -775,6 +882,7 @@ struct Probes {
   const char *levelset2;
   const char *levelset3;
   const char *levelset4;
+  const char *ionization_result;
 
   Probes();
   ~Probes() {}
@@ -825,16 +933,32 @@ struct OutputData {
 
   enum Options {OFF = 0, ON = 1};
   Options density, velocity, pressure, materialid, internal_energy, temperature, delta_temperature, laser_radiance;
+
   enum VerbosityLevel {LOW = 0, MEDIUM = 1, HIGH = 2} verbose;
 
   const static int MAXLS = 5;
   Options levelset[MAXLS];
-
   Options levelset0;
   Options levelset1;
   Options levelset2;
   Options levelset3;
   Options levelset4;
+
+  //! ionization-related outputs
+  Options mean_charge; //!< Zav
+  Options heavy_particles_density; //!< number density of heavy particles
+  Options electron_density; //!< number density of electrons
+  int max_charge_number; //!< all the ions with higher charge number will be lumped together in the output
+  const static int MAXSPECIES = 5; //!< This only limits outputing. MaterialIonizationModel can have more species.
+  Options molar_fractions[MAXSPECIES];
+  Options molar_fractions0;
+  Options molar_fractions1;
+  Options molar_fractions2;
+  Options molar_fractions3;
+  Options molar_fractions4;
+  inline bool ionization_output_requested() {
+    return mean_charge==ON || heavy_particles_density==ON || electron_density==ON || molar_fractions0==ON ||
+           molar_fractions1==ON || molar_fractions2==ON || molar_fractions3==ON || molar_fractions4==ON;}
 
   int frequency;
   double frequency_dt; //!< -1 by default. To activate it, set it to a positive number
@@ -876,6 +1000,8 @@ public:
   MultiPhaseData multiphase;
 
   LaserData laser;
+
+  IonizationData ion;
 
   TsData ts;
 
