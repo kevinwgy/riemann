@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
   int err = riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
 
   if(err) {
-    print("Warning: Riemann solver failed to find an initial bracketing interval. "
+    print("Warning: Riemann solver failed to find an initial bracketing interval or to converge. "
           "Providing an approximate solution.\n");
   }
 
