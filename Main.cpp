@@ -94,6 +94,12 @@ int main(int argc, char* argv[])
   }
 
   print("\n");
+  print("Solution:\n");
+  print("  V   = %e %e %e %e %e (id = %d).\n", V[0], V[1], V[2], V[3], V[4], id);
+  print("  Vsm = %e %e %e %e %e.\n", Vsm[0], Vsm[1], Vsm[2], Vsm[3], Vsm[4]);
+  print("  Vsp = %e %e %e %e %e.\n", Vsp[0], Vsp[1], Vsp[2], Vsp[3], Vsp[4]);
+
+  print("\n");
   print("\033[0;32m==========================================\033[0m\n");
   print("\033[0;32m           NORMAL TERMINATION             \033[0m\n"); 
   print("\033[0;32m==========================================\033[0m\n");
