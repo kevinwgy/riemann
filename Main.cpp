@@ -70,34 +70,57 @@ int main(int argc, char* argv[])
   Vp[4] = iod.bc.outlet.pressure;
   idp   = iod.bc.outlet.materialid;
 
-  print("Solving a One-Dimensional Riemann Problem...\n");
-  print("Left  State: %e %e %e (MaterialID: %d).\n",Vm[0],Vm[1],Vm[4],idm);
-  print("Right State: %e %e %e (MaterialID: %d).\n",Vp[0],Vp[1],Vp[4],idp);
+  if(idp>=0) {
+    print("Solving a One-Dimensional Riemann Problem...\n");
+    print("Left  State: %e %e %e (MaterialID: %d).\n",Vm[0],Vm[1],Vm[4],idm);
+    print("Right State: %e %e %e (MaterialID: %d).\n",Vp[0],Vp[1],Vp[4],idp);
 
-
-  if(argc==5) {//plot p-u relation
-    double pmin = atof(argv[2]);
-    double pmax = atof(argv[3]);
-    double dp   = atof(argv[4]);
-    riemann.PrintStarRelations(Vm[0], Vm[1], Vm[4], idm, Vp[0], Vp[1], Vp[4], idp, pmin, pmax, dp);
-    print("Printed the star state relations.\n");
+    if(argc==5) {//plot p-u relation
+      double pmin = atof(argv[2]);
+      double pmax = atof(argv[3]);
+      double dp   = atof(argv[4]);
+      riemann.PrintStarRelations(Vm[0], Vm[1], Vm[4], idm, Vp[0], Vp[1], Vp[4], idp, pmin, pmax, dp);
+      print("Printed the star state relations.\n");
+    }
   }
-
+  else {//one-sided Riemann solver
+    print("Solving a One-Sided Riemann Problem...\n");
+    print("Left  State: %e %e %e (MaterialID: %d).\n",Vm[0],Vm[1],Vm[4],idm);
+    print("Interface velocity: %e.\n", Vp[1]);
+  }
+ 
   int id;
   double Vsm[5], Vsp[5];
   double dir[3] = {1.0, 0.0, 0.0};
-  int err = riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
 
-  if(err) {
-    print("Warning: Riemann solver failed to find an initial bracketing interval or to converge. "
-          "Providing an approximate solution.\n");
+  if(idp>=0) {
+    int err = riemann.ComputeRiemannSolution(dir, Vm, idm, Vp, idp, V, id, Vsm, Vsp);
+
+    if(err) {
+      print("Warning: Riemann solver failed to find an initial bracketing interval or to converge. "
+            "Providing an approximate solution.\n");
+    }
+
+    print("\n");
+    print("Solution:\n");
+    print("  V   = %e %e %e %e %e (id = %d).\n", V[0], V[1], V[2], V[3], V[4], id);
+    print("  Vsm = %e %e %e %e %e.\n", Vsm[0], Vsm[1], Vsm[2], Vsm[3], Vsm[4]);
+    print("  Vsp = %e %e %e %e %e.\n", Vsp[0], Vsp[1], Vsp[2], Vsp[3], Vsp[4]);
   }
+  else {
+    double Ustar[3] = {Vp[1], Vp[2], Vp[3]};
+    int err = riemann.ComputeOneSidedRiemannSolution(dir, Vm, idm, Ustar, V, id, Vsm);
 
-  print("\n");
-  print("Solution:\n");
-  print("  V   = %e %e %e %e %e (id = %d).\n", V[0], V[1], V[2], V[3], V[4], id);
-  print("  Vsm = %e %e %e %e %e.\n", Vsm[0], Vsm[1], Vsm[2], Vsm[3], Vsm[4]);
-  print("  Vsp = %e %e %e %e %e.\n", Vsp[0], Vsp[1], Vsp[2], Vsp[3], Vsp[4]);
+    if(err) {
+      print("Warning: One-sided Riemann solver failed to find an initial bracketing interval or to converge. "
+            "Providing an approximate solution.\n");
+    }
+
+    print("\n");
+    print("Solution:\n");
+    print("  V   = %e %e %e %e %e (id = %d).\n", V[0], V[1], V[2], V[3], V[4], id);
+    print("  Vsm = %e %e %e %e %e.\n", Vsm[0], Vsm[1], Vsm[2], Vsm[3], Vsm[4]);
+  }
 
   print("\n");
   print("\033[0;32m==========================================\033[0m\n");
