@@ -1029,7 +1029,6 @@ ExactRiemannSolverBase::FindInitialFeasiblePointsOneSided(double rhol, double ul
   found = FindInitialFeasiblePointsOneSidedByAcousticTheory(rhol, ul, pl, el, cl, idl, ustar,
               p0, rhol0, ul0, p1, rhol1, ul1/*outputs*/);
 
-  fprintf(stderr,"found = %d, p0 = %e, p1 = %e.\n", found, p0, p1);
   if(found==2)
     return true; //yeah
 
