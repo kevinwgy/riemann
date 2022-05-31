@@ -10,8 +10,6 @@
 #include <Utils.h>
 
 using std::map;
-using std::pair;
-using std::vector;
 
 /*********************************************************************
  * class IoData reads and processes the input data provided by the user
@@ -48,6 +46,7 @@ struct StateVariable {
   double velocity_z;
   double pressure;
   double temperature;
+  double internal_energy_per_mass;
 
   StateVariable();
   ~StateVariable() {}
@@ -291,6 +290,21 @@ struct ViscosityModelData {
 
 //------------------------------------------------------------------------------
 
+struct HeatDiffusionModelData {
+
+  enum Type {NONE = 0, CONSTANT = 1} type;
+
+  // constant
+  double diffusivity;
+
+  HeatDiffusionModelData();
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
 struct MaterialModelData {
 
   int id;
@@ -307,6 +321,8 @@ struct MaterialModelData {
   JonesWilkinsLeeModelData jwlModel;
 
   ViscosityModelData viscosity;
+
+  HeatDiffusionModelData heat_diffusion;
 
   MaterialModelData();
   ~MaterialModelData() {}
@@ -342,6 +358,8 @@ struct EquationsData {
   ObjectMap<MaterialModelData> materials;
 
   ObjectMap<MaterialTransitionData> transitions;
+
+  StateVariable dummy_state; //!< for "inactive" nodes
 
   EquationsData();
   ~EquationsData() {}
@@ -555,7 +573,11 @@ struct MultiPhaseData {
 
   enum ReconstructionAtInterface {CONSTANT = 0, LINEAR = 1} recon;
 
+  double conRec_depth; //!< depth (fabs(phi)) where constant reconstruction is applied (default: 0)
+
   enum PhaseChangeType {RIEMANN_SOLUTION = 0, EXTRAPOLATION = 1} phasechange_type;
+
+  enum PhaseChangeDirection {ALL = 0, UPWIND = 1} phasechange_dir;
 
   enum RiemannNormal {LEVEL_SET = 0, MESH = 1, AVERAGE = 2} riemann_normal;
 
@@ -684,11 +706,17 @@ struct BcsData {
 
 struct IcData {
 
+  //-----------------------------------------------------------------------
   //! initial condition specified using simple geometric entities (e.g., point, plane,)
   MultiInitialConditionsData multiInitialConditions;
+  //-----------------------------------------------------------------------
 
+  //-----------------------------------------------------------------------
   //! user-specified file
   const char *user_specified_ic;
+
+  enum RadialBasisFunction {MULTIQUADRIC = 0, INVERSE_MULTIQUADRIC = 1, 
+                            THIN_PLATE_SPLINE = 2, GAUSSIAN = 3} rbf; //radial basis function for interpolation
 
   enum Type {NONE = 0, PLANAR = 1, CYLINDRICAL = 2, SPHERICAL = 3, 
              GENERALCYLINDRICAL = 4} type;
@@ -703,9 +731,10 @@ struct IcData {
 
   int specified[SIZE];  //!< 0~unspecified, 1~specified
 
-  vector<double> user_data[SIZE];
+  std::vector<double> user_data[SIZE];
 
-  vector<double> user_data2[SIZE]; //!< for radial variation 
+  std::vector<double> user_data2[SIZE]; //!< for radial variation 
+  //-----------------------------------------------------------------------
 
   IcData();
   ~IcData() {}
@@ -982,12 +1011,173 @@ struct OutputData {
 
 //------------------------------------------------------------------------------
 
+struct LagrangianMeshOutputData {
+
+  int frequency;
+  double frequency_dt; //!< -1 by default. To activate it, set it to a positive number
+
+  const char* prefix; //!< path
+
+  const char* orig_config; //!< original mesh
+  const char* disp; //!< displacement
+  const char* sol; //!< solution
+
+  LagrangianMeshOutputData();
+  ~LagrangianMeshOutputData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+
+//------------------------------------------------------------------------------
+
+//NOTE Currently, Embedded surface must use triangle elements.
+struct EmbeddedSurfaceData {
+
+  //! general information
+  enum Type {None = 0, Wall = 1, Symmetry = 2, DirectState = 3, MassFlow = 4, PorousWall = 5,
+             Size = 6} type;
+  enum YesNo {NO = 0, YES = 1} provided_by_another_solver;
+  const char *filename; //!< file for nodal coordinates and elements
+  enum ThermalCondition {Adiabatic = 0, Isothermal = 1, Source = 2} thermal;
+  double heat_source;
+
+  const char *wetting_output_filename; //!< optional output file that shows the detected wetted side(s)
+
+  double surface_thickness;
+
+  //! tools
+  const char *dynamics_calculator;
+
+  //! force calculation (NONE: force is 0, i.e. one-way coupling)
+  enum GaussQuadratureRule {NONE = 0, ONE_POINT = 1, THREE_POINT = 2, FOUR_POINT = 3,
+                            SIX_POINT = 4} quadrature;
+  double gauss_points_lofting; //!< non-dimensional, relative to local element size
+  double internal_pressure; //!< pressure applied on the inactive side (i.e. inside solid body)
+
+  //! flux calculation
+  double conRec_depth; //!< depth (dimensional) where constant reconstruction is applied (default: 0)
+
+
+  //! output displacement and nodal load
+  LagrangianMeshOutputData output;
+
+
+  EmbeddedSurfaceData();
+  ~EmbeddedSurfaceData() {}
+
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
+struct EmbeddedSurfacesData {
+
+  ObjectMap<EmbeddedSurfaceData> surfaces;
+
+
+  EmbeddedSurfacesData();
+  ~EmbeddedSurfacesData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct EmbeddedBoundaryMethodData {
+
+  EmbeddedSurfacesData embed_surfaces;
+
+  //! normal direction used to construct the 1D Riemann solver 
+  enum RiemannNormal {EMBEDDED_SURFACE = 0, MESH = 1, AVERAGE = 2} riemann_normal;
+
+  enum ReconstructionAtInterface {CONSTANT = 0, LINEAR = 1} recon;
+
+  EmbeddedBoundaryMethodData();
+  ~EmbeddedBoundaryMethodData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+  
+};
+
+//------------------------------------------------------------------------------
+
+struct AerosCouplingData {
+
+  enum FSICouplingAlgorithm {NONE = 0, BY_AEROS = 1, C0 = 2, A6 = 3} fsi_algo;
+
+  AerosCouplingData();
+  ~AerosCouplingData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct ConcurrentProgramsData {
+
+  AerosCouplingData aeros;
+
+  ConcurrentProgramsData();
+  ~ConcurrentProgramsData() {} 
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct TransientInputData {
+
+  const char* metafile;
+  const char* snapshot_file_prefix; 
+  const char* snapshot_file_suffix; 
+  
+  enum BasisFunction {MULTIQUADRIC = 0, INVERSE_MULTIQUADRIC = 1, 
+                      THIN_PLATE_SPLINE = 2, GAUSSIAN = 3, SIZE = 4} basis; //basis function for interpolation
+  int numPoints; //number of points for (unstructured) interpolation
+
+  LagrangianMeshOutputData output;
+
+  TransientInputData();
+  ~TransientInputData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct SpecialToolsData {
+
+  enum Type {NONE = 0, DYNAMIC_LOAD_CALCULATION = 1, SIZE = 2} type;
+  
+  TransientInputData transient_input;
+
+  SpecialToolsData();
+  ~SpecialToolsData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+};
+
+//------------------------------------------------------------------------------
+
 class IoData {
 
   char *cmdFileName;
   FILE *cmdFilePtr;
 
 public:
+
+  ConcurrentProgramsData concurrent;
+
+  EmbeddedBoundaryMethodData ebm;
 
   MeshData mesh;
 
@@ -1009,6 +1199,8 @@ public:
 
   OutputData output;
 
+  SpecialToolsData special_tools;
+
 public:
 
   IoData() {}
@@ -1018,6 +1210,7 @@ public:
   void readCmdLine(int, char**);
   void setupCmdFileVariables();
   void readCmdFile();
+  void finalize();
 
 };
 #endif

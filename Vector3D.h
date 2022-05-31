@@ -12,13 +12,29 @@ struct Int3 {
   Int3() {v[0] = v[1] = v[2] = 0;}
   Int3(int x[3]) { v[0] = x[0]; v[1] = x[1]; v[2] = x[2]; }
   Int3(int i1, int i2, int i3) {v[0] = i1; v[1] = i2; v[2] = i3;}
+  Int3(int i) {v[0] = v[1] = v[2] = i;}
   Int3(const Int3& v2) {for(int i=0; i<3; i++) v[i] = v2.v[i];}
+  Int3 &operator=(const int v2) {v[0] = v[1] = v[2] = v2; return *this;}
   Int3 &operator=(const Int3& v2) {for(int i=0; i<3; i++) v[i] = v2.v[i]; return *this;}
+  Int3 &operator+=(const Int3 &v2) {for(int i=0; i<3; i++) v[i] += v2.v[i]; return *this;}
   Int3 operator+(const Int3& v2) {Int3 res; for(int i=0; i<3; i++) res.v[i] = v[i] + v2.v[i]; return res;}
   Int3 operator-(const Int3& v2) {Int3 res; for(int i=0; i<3; i++) res.v[i] = v[i] - v2.v[i]; return res;}
   int &operator[](int i) {return v[i];}
   int operator[](int i) const {return v[i];}
   operator int*() { return v; } //convert Int3D to int*
+
+  bool operator<(const Int3& v2) const {
+    if     (v[0]<v2.v[0]) {return true;} else if(v[0]>v2.v[0]) {return false;} 
+    else if(v[1]<v2.v[1]) {return true;} else if(v[1]>v2.v[1]) {return false;} 
+    else if(v[2]<v2.v[2]) {return true;} else return false;
+  }
+
+  bool operator==(const Int3& v2) const {
+    if     (v[0] != v2.v[0])   return false;
+    else if(v[1] != v2.v[1])   return false;
+    else if(v[2] != v2.v[2])   return false;
+    else                       return true;
+  }
 };
 
 //------------------------------------------------------------------------------
@@ -312,13 +328,14 @@ Vec3D max( const Vec3D& a, const Vec3D& b) {
 
 // An instantiation of "Obj" in KDTree.h
 class PointIn3D {
+public:
   int id;
   Vec3D x;
 public:
   PointIn3D() {}
   PointIn3D(int i, Vec3D &xin) {id = i; x = xin;}
   double val(int i) const {return x[i];}
-//  double width(int i) const {return 0.0;}
+  double width(int i) const {return 0.0;}
   int pid() const {return id;}
 };
 
