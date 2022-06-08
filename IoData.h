@@ -504,12 +504,11 @@ struct LevelSetSchemeData {
 
   enum Flux {ROE = 0, LOCAL_LAX_FRIEDRICHS = 1, UPWIND = 2} flux;
   ReconstructionData rec;
+  double delta; //! The coeffient in Harten's entropy fix.
 
   enum BcType {NONE = 0, ZERO_NEUMANN = 1, LINEAR_EXTRAPOLATION = 2, NON_NEGATIVE = 3, SIZE = 4};
   BcType bc_x0, bc_xmax, bc_y0, bc_ymax, bc_z0, bc_zmax;
-
   
-  double delta; //! The coeffient in Harten's entropy fix.
 
   int bandwidth; //number of layers of nodes on each side of interface
 
@@ -1002,6 +1001,8 @@ struct OutputData {
   MaterialVolumes materialVolumes;
 
   const char *mesh_filename; //!< file for nodal coordinates
+
+  const char *mesh_partition; //!< file for nodal coordinates
 
   OutputData();
   ~OutputData() {}

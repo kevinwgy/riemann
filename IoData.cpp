@@ -1044,7 +1044,7 @@ ExactRiemannSolverData::ExactRiemannSolverData()
   numSteps_rarefaction = 200;
   tol_main = 1.0e-4; //applied to both pressure and velocity
   tol_shock = 1.0e-12; //a density tolerance (non-D)
-  tol_rarefaction = 1.0e-12; //a pressure tolerance (non-D); (for one-sided riemann, it is applied to velocity)
+  tol_rarefaction = 1.0e-8; //a density and velocity tolerance (non-D); 
   min_pressure = -1.0e8;
   failure_threshold = 0.2;
   pressure_at_failure = 1.0e-8;
@@ -1140,7 +1140,7 @@ void MultiPhaseData::setup(const char *name, ClassAssigner *father)
   new ClassToken<MultiPhaseData>
     (ca, "RiemannNormal", this,
      reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::riemann_normal), 3,
-     "EmbeddedSurface", 0, "Mesh", 1, "Average", 2);
+     "LevelSet", 0, "Mesh", 1, "Average", 2);
 
   new ClassToken<MultiPhaseData>
     (ca, "LatentHeatTransfer", this,
@@ -2207,6 +2207,8 @@ OutputData::OutputData()
 
   mesh_filename = "";
 
+  mesh_partition = "";
+
   verbose = LOW;
 }
 
@@ -2214,7 +2216,7 @@ OutputData::OutputData()
 
 void OutputData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 21+MAXLS+MAXSPECIES, father);
+  ClassAssigner *ca = new ClassAssigner(name, 22+MAXLS+MAXSPECIES, father);
 
   new ClassStr<OutputData>(ca, "Prefix", this, &OutputData::prefix);
   new ClassStr<OutputData>(ca, "Solution", this, &OutputData::solution_filename_base);
@@ -2292,6 +2294,8 @@ void OutputData::setup(const char *name, ClassAssigner *father)
                                "Off", 0, "On", 1);
 
   new ClassStr<OutputData>(ca, "MeshInformation", this, &OutputData::mesh_filename);
+
+  new ClassStr<OutputData>(ca, "MeshPartition", this, &OutputData::mesh_partition);
 
   new ClassToken<OutputData>(ca, "VerboseScreenOutput", this,
                                reinterpret_cast<int OutputData::*>(&OutputData::verbose), 3,
