@@ -32,7 +32,8 @@ class VarFcnBase {
 
 public:
   
-  enum Type{STIFFENED_GAS = 0, MIE_GRUNEISEN = 1, JWL = 2, DUMMY = 3} type;
+  enum Type{STIFFENED_GAS = 0, NOBLE_ABEL_STIFFENED_GAS = 1, MIE_GRUNEISEN = 2, JWL = 3, 
+            ANEOS_BIRCH_MURNAGHAN_DEBYE = 4, DUMMY = 5} type;
 
   double rhomin,pmin;
   double rhomax,pmax;
@@ -53,53 +54,58 @@ public:
  
   //----- EOS-Specific Functions -----//
   //! get pressure from density (rho) and internal energy per unit mass (e)
-  virtual double GetPressure(double rho, double e) const{
+  virtual double GetPressure(double rho, double e) {
     fprintf(stderr,"\033[0;31m*** Error:  GetPressure Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! get e (internal energy per unit mass) from density (rho) and pressure (p)
-  virtual double GetInternalEnergyPerUnitMass(double rho, double p) const{
+  virtual double GetInternalEnergyPerUnitMass(double rho, double p) {
     fprintf(stderr,"\033[0;31m*** Error:  GetInternalEnergyPerUnitMass Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
+  //! get e - e0 from density (rho) and pressure (p)
+  virtual double GetReferenceInternalEnergyPerUnitMass() {
+    fprintf(stderr,"\033[0;31m*** Error:  GetReferenceInternalEnergyPerUnitMass Function not defined\n\033[0m");
+    exit(-1); return 0.0;}
+
   //! get rho (density) from p (pressure) and p (internal energy per unit mass)
-  virtual double GetDensity(double p, double e) const{
+  virtual double GetDensity(double p, double e) {
     fprintf(stderr,"\033[0;31m*** Error:  GetDensity Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! dpdrho = \frac{\partial p(\rho,e)}{\partial \rho}
-  virtual double GetDpdrho(double rho, double e) const{
+  virtual double GetDpdrho(double rho, double e) {
     fprintf(stderr,"\033[0;31m*** Error:  GetDpdrho Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! BigGamma = 1/rho*(\frac{\partial p(\rho,e)}{\partial e})
   //  It is called "BigGamma" to distinguish it from the small "gamma" in perfect and stiffened EOS.
-  virtual double GetBigGamma(double rho, double e) const{
+  virtual double GetBigGamma(double rho, double e) {
     fprintf(stderr,"\033[0;31m*** Error:  GetBigGamma Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! temperature law, defined separately for each EOS
-  virtual double GetTemperature(double rho, double e) const{
+  virtual double GetTemperature(double rho, double e) {
     fprintf(stderr,"\033[0;31m*** Error:  GetTemperature Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! temperature law, defined separately for each EOS
-  virtual double GetReferenceTemperature() const{
+  virtual double GetReferenceTemperature() {
     fprintf(stderr,"\033[0;31m*** Error:  GetReferenceTemperature Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! temperature law, defined separately for each EOS
-  virtual double GetInternalEnergyPerUnitMassFromTemperature(double rho, double T) const{
+  virtual double GetInternalEnergyPerUnitMassFromTemperature(double rho, double T) {
     fprintf(stderr,"\033[0;31m*** Error:  GetInternalEnergyPerUnitMassFromTemperature Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //! calculate e from rho and h
-  virtual double GetInternalEnergyPerUnitMassFromEnthalpy(double rho, double h) const{
+  virtual double GetInternalEnergyPerUnitMassFromEnthalpy(double rho, double h) {
     fprintf(stderr,"\033[0;31m*** Error:  GetInternalEnergyPerUnitMassFromEnthalpy Function not defined\n\033[0m");
     exit(-1); return 0.0;}
 
   //checks that the Euler equations are still hyperbolic
-  virtual bool CheckState(double rho, double p, bool silence = false) const{
+  virtual bool CheckState(double rho, double p, bool silence = false) {
     if(!std::isfinite(rho) || !std::isfinite(p)) {
       if(!silence)
         fprintf(stderr, "*** Error: CheckState failed. rho = %e, p = %e.\n\033[0m", rho, p);
@@ -121,7 +127,7 @@ public:
   }
 
   //checks that the Euler equations are still hyperbolic
-  virtual bool CheckState(double *V, bool silence = false) const{
+  virtual bool CheckState(double *V, bool silence = false) {
     if(!std::isfinite(V[0]) || !std::isfinite(V[1]) || !std::isfinite(V[2]) || !std::isfinite(V[3]) || !std::isfinite(V[4])){
       if(!silence)
         fprintf(stderr, "\033[0;31m*** Error: CheckState failed. V = %e %e %e %e %e\n\033[0m", V[0], V[1], V[2], V[3], V[4]);
@@ -131,7 +137,7 @@ public:
   }
  
   //check for phase transitions
-  virtual bool CheckPhaseTransition(int id/*id of the other phase*/) const{
+  virtual bool CheckPhaseTransition(int id/*id of the other phase*/) {
     return false; //by default, phase transition is not allowed/considered
   }
 

@@ -185,7 +185,7 @@ struct MeshData {
   ObjectMap<MeshResolution1DPointData>  ypoints_map;
   ObjectMap<MeshResolution1DPointData>  zpoints_map;
 
-  enum BcType {NONE = 0, INLET = 1, OUTLET = 2, WALL = 3, SYMMETRY = 4, SIZE = 5};
+  enum BcType {NONE = 0, INLET = 1, OUTLET = 2, SLIPWALL = 3, STICKWALL = 4, SYMMETRY = 5, SIZE = 6};
   BcType bc_x0, bc_xmax, bc_y0, bc_ymax, bc_z0, bc_zmax;
 
   MeshData();
@@ -204,6 +204,7 @@ struct StiffenedGasModelData {
   double pressureConstant;
 
   //! parameters related to temperature
+  //! Method 1: Assume constant cv or cp, and T as a function of only e.
   double cv; //!< specific heat at constant volume
   double T0;  //!< temperature is T0 when internal energy (per mass) is e0
   double e0;  //!< internal energy per specific mass at T0
@@ -214,9 +215,32 @@ struct StiffenedGasModelData {
   //      equivalent to using (cp, T0, h0). See KW's note. By default, cv is used. But if cv
   //      is 0 while cp>0, cp will be used.
  
+  //! Method 2: Assume constant cv, but T depends on both e and rho.
+  double rho0; //!< for temperature calculation. If specified (>0) and cv>0, will activate the
+               //!< temperature law that depends on both rho and e
 
   StiffenedGasModelData();
   ~StiffenedGasModelData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct NobleAbelStiffenedGasModelData {
+
+  double specificHeatRatio; //!< gamma
+  double pressureConstant; //!< p_c
+  double volumeConstant; //!< b
+  double energyConstant; //!< q
+  double entropyConstant; //!< q'
+
+  //! parameters related to temperature
+  double cv; //!< specific heat at constant volume
+
+  NobleAbelStiffenedGasModelData();
+  ~NobleAbelStiffenedGasModelData() {}
 
   void setup(const char *, ClassAssigner * = 0);
 
@@ -266,6 +290,31 @@ struct JonesWilkinsLeeModelData {
 
 //------------------------------------------------------------------------------
 
+struct ANEOSBirchMurnaghanDebyeModelData {
+
+  double zeroKelvinDensity; //!< reference density at 0 K (NOT ambient state)
+  double b0; //!< bulk modulus (ambient)
+  double b0prime; //!< derivative of b0 w.r.t. pressure
+  double delta_e; //!< internal energy shift (often set to 0)
+  double molar_mass; //!< molar mass
+  double T0; //!< reference temperature (ambient state)
+  double e0; //!< reference internal energy (ambient state)
+  double Gamma0; //!< reference Gruneisen parameter (ambient state)
+  double rho0; //!< reference densiy (ambient state)
+
+  double boltzmann_constant; //!< boltzmann constant
+
+  enum DebyeFunctionEvaluation {ON_THE_FLY = 0, CUBIC_SPLINE_INTERPOLATION = 1} debye_evaluation;
+
+  ANEOSBirchMurnaghanDebyeModelData();
+  ~ANEOSBirchMurnaghanDebyeModelData() {}
+
+  void setup(const char *, ClassAssigner * = 0);  
+
+};
+
+//------------------------------------------------------------------------------
+
 struct ViscosityModelData {
 
   enum Type {NONE = 0, CONSTANT = 1, SUTHERLAND = 2, ARTIFICIAL_RODIONOV = 3} type;
@@ -283,6 +332,7 @@ struct ViscosityModelData {
   double Cav, Cth; 
 
   ViscosityModelData();
+  ~ViscosityModelData() {}
 
   void setup(const char *, ClassAssigner * = 0);
 
@@ -298,6 +348,26 @@ struct HeatDiffusionModelData {
   double diffusivity;
 
   HeatDiffusionModelData();
+  ~HeatDiffusionModelData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct HyperelasticityModelData {
+
+  enum Type {NONE = 0, SAINTVENANT_KIRCHHOFF = 1, MODIFIED_SAINTVENANT_KIRCHHOFF = 2,
+             NEO_HOOKEAN = 3, MOONEY_RIVLIN = 4} type;
+
+  double youngs_modulus; 
+  double poissons_ratio;
+
+  double C01; //additional parameter for Mooney-Rivlin (dW/dI2bar)
+
+  HyperelasticityModelData();
+  ~HyperelasticityModelData() {}
 
   void setup(const char *, ClassAssigner * = 0);
 
@@ -308,7 +378,8 @@ struct HeatDiffusionModelData {
 struct MaterialModelData {
 
   int id;
-  enum EOS {STIFFENED_GAS = 0, MIE_GRUNEISEN = 1, JWL = 2} eos;
+  enum EOS {STIFFENED_GAS = 0, NOBLE_ABEL_STIFFENED_GAS = 1, MIE_GRUNEISEN = 2, 
+            JWL = 3, ANEOS_BIRCH_MURNAGHAN_DEBYE = 4} eos;
   double rhomin;
   double pmin;
   double rhomax;
@@ -316,13 +387,17 @@ struct MaterialModelData {
 
   double failsafe_density; //for updating phase change -- last resort
 
-  StiffenedGasModelData    sgModel;
-  MieGruneisenModelData    mgModel;
-  JonesWilkinsLeeModelData jwlModel;
+  StiffenedGasModelData             sgModel;
+  NobleAbelStiffenedGasModelData    nasgModel;
+  MieGruneisenModelData             mgModel;
+  JonesWilkinsLeeModelData          jwlModel;
+  ANEOSBirchMurnaghanDebyeModelData abmdModel;
 
   ViscosityModelData viscosity;
 
   HeatDiffusionModelData heat_diffusion;
+
+  HyperelasticityModelData hyperelasticity;
 
   MaterialModelData();
   ~MaterialModelData() {}
@@ -714,6 +789,8 @@ struct IcData {
   //! user-specified file
   const char *user_specified_ic;
 
+  enum YesNo {NO = 0, YES = 1} apply_user_file_before_geometries;
+
   enum RadialBasisFunction {MULTIQUADRIC = 0, INVERSE_MULTIQUADRIC = 1, 
                             THIN_PLATE_SPLINE = 2, GAUSSIAN = 3} rbf; //radial basis function for interpolation
 
@@ -827,7 +904,9 @@ struct AtomicIonizationModel {
 
 struct MaterialIonizationModel{
 
-  enum Type {NONE = 0, SAHA_IDEAL = 1, SAHA_NONIDEAL = 2, SIZE = 3} type;
+  enum Type {NONE = 0, SAHA_IDEAL = 1, SAHA_NONIDEAL = 2} type;
+
+  enum DepressionModel {NO_DEPRESSION = 0, GRIEM = 1, EBELING = 2} depression;
 
   int maxIts;
   double convergence_tol;
@@ -860,6 +939,7 @@ struct IonizationData {
   double electron_charge; //needed?
   double electron_mass;
   double boltzmann_constant;
+  double vacuum_permittivity;
   
   ObjectMap<MaterialIonizationModel> materialMap;
   
@@ -954,6 +1034,38 @@ struct MaterialVolumes {
   void setup(const char *, ClassAssigner * = 0);
 };
 
+
+//------------------------------------------------------------------------------
+
+struct TerminalVisualizationData {
+
+  enum ColorMap {GRAYSCALE = 0, TURBO = 1} colormap;
+
+  enum Plane {NONE = 0, YZ = 1, XZ = 2, XY = 3} plane;
+  double coordinate;
+
+  const char *filename; //!< filename with path (if not specified, print to the screen (stdout))
+
+  enum Vars  {DENSITY = 0, VELOCITY = 1, PRESSURE = 2, TEMPERATURE = 3, 
+              MATERIALID = 4, LASERRADIANCE = 5, LEVELSET0 = 6, LEVELSET1 = 7, 
+              MEANCHARGE = 8}  variable;
+
+  double horizontal_min, horizontal_max;
+  double vertical_min, vertical_max;
+  double dx;
+  
+  int frequency;
+  double frequency_dt; //!< -1 by default. To activate it, set it to a positive number
+  double frequency_clocktime; //!< clock time, in seconds
+  double pause; //!< pause after printing each snapshot, relevant only if filename is stdout or stderr 
+
+  TerminalVisualizationData();
+  ~TerminalVisualizationData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
 //------------------------------------------------------------------------------
 
 struct OutputData {
@@ -962,7 +1074,8 @@ struct OutputData {
   const char *solution_filename_base; //!< filename without path
 
   enum Options {OFF = 0, ON = 1};
-  Options density, velocity, pressure, materialid, internal_energy, temperature, delta_temperature, laser_radiance;
+  Options density, velocity, pressure, materialid, internal_energy, delta_internal_energy,
+          temperature, delta_temperature, laser_radiance, reference_map;
 
   enum VerbosityLevel {LOW = 0, MEDIUM = 1, HIGH = 2} verbose;
 
@@ -1155,6 +1268,18 @@ struct TransientInputData {
 
 //------------------------------------------------------------------------------
 
+struct ReferenceMapData {
+
+  enum FiniteDifferenceMethod {NONE = 0, UPWIND_CENTRAL_3 = 1} fd;
+
+  ReferenceMapData();
+  ~ReferenceMapData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+};
+
+//------------------------------------------------------------------------------
+
 struct SpecialToolsData {
 
   enum Type {NONE = 0, DYNAMIC_LOAD_CALCULATION = 1, SIZE = 2} type;
@@ -1198,9 +1323,13 @@ public:
 
   TsData ts;
 
+  ReferenceMapData refmap;
+
   OutputData output;
 
   SpecialToolsData special_tools;
+
+  TerminalVisualizationData terminal_visualization;
 
 public:
 

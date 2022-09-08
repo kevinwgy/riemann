@@ -28,6 +28,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # add include and link directories 
 include_directories("${CMAKE_SOURCE_DIR}")
+include_directories(${CMAKE_SOURCE_DIR}/MathTools)
 link_directories(${CMAKE_SOURCE_DIR}/parser)
 
 # compile the parser

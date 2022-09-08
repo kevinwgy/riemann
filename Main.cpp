@@ -2,8 +2,11 @@
 #include <Utils.h>
 #include <IoData.h>
 #include <VarFcnSG.h>
+#include <VarFcnNASG.h>
 #include <VarFcnMG.h>
 #include <VarFcnJWL.h>
+#include <VarFcnANEOSEx1.h>
+#include <VarFcnDummy.h>
 #include <ExactRiemannSolverBase.h>
 #include <set>
 using std::cout;
@@ -37,17 +40,21 @@ int main(int argc, char* argv[])
   for(auto it = iod.eqs.materials.dataMap.begin(); it != iod.eqs.materials.dataMap.end(); it++) {
     int matid = it->first;
     if(matid < 0 || matid >= vf.size()) {
-      print_error("Error: Detected error in the specification of material indices (id = %d).\n", matid);
+      print_error("*** Error: Detected error in the specification of material indices (id = %d).\n", matid);
       exit_mpi();
     }
     if(it->second->eos == MaterialModelData::STIFFENED_GAS)
       vf[matid] = new VarFcnSG(*it->second);
+    else if(it->second->eos == MaterialModelData::NOBLE_ABEL_STIFFENED_GAS)
+      vf[matid] = new VarFcnNASG(*it->second);
     else if(it->second->eos == MaterialModelData::MIE_GRUNEISEN)
       vf[matid] = new VarFcnMG(*it->second);
     else if(it->second->eos == MaterialModelData::JWL)
       vf[matid] = new VarFcnJWL(*it->second);
+    else if(it->second->eos == MaterialModelData::ANEOS_BIRCH_MURNAGHAN_DEBYE)
+      vf[matid] = new VarFcnANEOSEx1(*it->second);
     else {
-      print_error("Error: Unable to initialize variable functions (VarFcn) for the specified material model.\n");
+      print_error("*** Error: Unable to initialize variable functions (VarFcn) for the specified material model.\n");
       exit_mpi();
     }
   }
