@@ -272,15 +272,41 @@ Assigner *CylinderSphereData::getAssigner()
 
 //------------------------------------------------------------------------------
 
+UserSpecifiedEnclosureData::UserSpecifiedEnclosureData()
+{
+  surface_filename = "";    
+  surface_thickness = 1.0e-8;
+}
+
+//------------------------------------------------------------------------------
+
+Assigner *UserSpecifiedEnclosureData::getAssigner()
+{
+  ClassAssigner *ca = new ClassAssigner("normal", 3, nullAssigner);
+
+  new ClassStr<UserSpecifiedEnclosureData>(ca, "SurfaceMeshFile", this,
+          &UserSpecifiedEnclosureData::surface_filename);
+
+  new ClassDouble<UserSpecifiedEnclosureData>(ca, "SurfaceThickness", this, 
+          &UserSpecifiedEnclosureData::surface_thickness);
+
+  initialConditions.setup("InitialState", ca);
+
+  return ca;
+}
+
+//------------------------------------------------------------------------------
+
 void MultiInitialConditionsData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 6, father);
+  ClassAssigner *ca = new ClassAssigner(name, 7, father);
   pointMap.setup("Point", ca);
   planeMap.setup("Plane", ca);
   sphereMap.setup("Sphere", ca);
   spheroidMap.setup("Spheroid", ca);
   cylinderconeMap.setup("CylinderAndCone", ca);
   cylindersphereMap.setup("CylinderWithSphericalCaps", ca);
+  enclosureMap.setup("ArbitraryEnclosure", ca);
 }
 
 //------------------------------------------------------------------------------
@@ -354,7 +380,7 @@ void MeshData::setup(const char *name, ClassAssigner *father)
 
   // Inside the code: Farfield0 = Farfield = Inlet, Farfield1 = Outlet
   new ClassToken<MeshData>(ca, "BoundaryConditionX0", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_x0), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_x0), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -362,9 +388,10 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
   new ClassToken<MeshData>(ca, "BoundaryConditionXmax", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_xmax), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_xmax), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -372,9 +399,10 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
   new ClassToken<MeshData>(ca, "BoundaryConditionY0", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_y0), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_y0), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -382,9 +410,10 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
   new ClassToken<MeshData>(ca, "BoundaryConditionYmax", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_ymax), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_ymax), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -392,9 +421,10 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
   new ClassToken<MeshData>(ca, "BoundaryConditionZ0", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_z0), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_z0), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -402,9 +432,10 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
   new ClassToken<MeshData>(ca, "BoundaryConditionZmax", this,
-                               reinterpret_cast<int MeshData::*>(&MeshData::bc_zmax), 11,
+                               reinterpret_cast<int MeshData::*>(&MeshData::bc_zmax), 12,
                                "None", 0, 
                                "Inlet", 1, "Outlet", 2, //option 1
                                "Farfield0", 1, "Farfield1", 2, //option 2,
@@ -412,7 +443,8 @@ void MeshData::setup(const char *name, ClassAssigner *father)
                                "Wall", 3, //slip wall
                                "SlipWall", 3, //slip wall,
                                "StickWall", 4, //no-slip wall
-                               "NoSlipWall", 4, "Symmetry", 5);
+                               "NoSlipWall", 4, "Symmetry", 5,
+                               "Overset", 6);
  } 
 
 //------------------------------------------------------------------------------
@@ -1054,7 +1086,7 @@ LevelSetReinitializationData::LevelSetReinitializationData()
 {
   frequency = -1;
   frequency_dt = -1.0;
-  maxIts = 20;
+  maxIts = 30;
   cfl = 0.8;
   convergence_tolerance = 2.0e-4;
   firstLayerTreatment = FIXED;
@@ -1273,8 +1305,8 @@ void MultiPhaseData::setup(const char *name, ClassAssigner *father)
 
   new ClassToken<MultiPhaseData>
     (ca, "Flux", this,
-     reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::flux), 2,
-     "Exact", 0, "Numerical", 1);
+     reinterpret_cast<int MultiPhaseData::*>(&MultiPhaseData::flux), 3,
+     "Exact", 0, "Numerical", 1, "LocalLaxFriedrichs", 2);
 
   new ClassToken<MultiPhaseData>
     (ca, "ReconstructionAtInterface", this,
@@ -1519,7 +1551,7 @@ IcData::IcData()
 
 void IcData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 4, father);
+  ClassAssigner *ca = new ClassAssigner(name, 5, father);
 
   new ClassStr<IcData>(ca, "UserDataFile", this, &IcData::user_specified_ic);
 
@@ -1530,6 +1562,8 @@ void IcData::setup(const char *name, ClassAssigner *father)
   new ClassToken<IcData> (ca, "InterpolationFunction", this,
         reinterpret_cast<int IcData::*>(&IcData::rbf), 4, "Multiquadric", 0, 
         "InverseMultiquadric", 1, "ThinPlateSpline", 2, "Gaussian", 3);
+
+  default_ic.setup("DefaultInitialState");
 
   multiInitialConditions.setup("GeometricEntities");
 }
@@ -1593,7 +1627,7 @@ void IcData::readUserSpecifiedIC()
   }
 
   input.close();
-  //print("Read user-specified initial condition.\n");
+
 }
 
 //------------------------------------------------------------------------------
@@ -1957,7 +1991,7 @@ void IcData::readUserSpecifiedIC_GeneralCylindrical(std::fstream &input)
 
   // Now start reading the data in the axial direction
   double data;
-  bool found_radial = false;
+  //bool found_radial = false;
   for(int r=0; r<INT_MAX; r++) {
 
     getline(input, line);
@@ -2480,6 +2514,8 @@ void OutputData::setup(const char *name, ClassAssigner *father)
 
   linePlots.setup("LinePlot", ca);
 
+  planePlots.setup("CutPlane", ca);
+
   materialVolumes.setup("MaterialVolumes", ca);
 
 }
@@ -2596,6 +2632,74 @@ Assigner* LinePlot::getAssigner()
 }
 
 //------------------------------------------------------------------------------
+
+PlanePlot::PlanePlot() {
+
+  x0 = y0 = z0 = 0.0;
+  normal_x = 0.0;
+  normal_y = 0.0;
+  normal_z = 1.0;
+
+  frequency = -100;
+  frequency_dt = -1.0;
+
+  mesh = "";
+
+  density = "";
+  pressure = "";
+  temperature = "";
+  delta_temperature = "";
+  velocity = "";
+  materialid = "";
+  laser_radiance = "";
+  levelset0 = "";
+  levelset1 = "";
+  levelset2 = "";
+  levelset3 = "";
+  levelset4 = "";
+  ionization_result = "";
+
+}
+
+//------------------------------------------------------------------------------
+
+Assigner* PlanePlot::getAssigner()
+{
+
+  ClassAssigner *ca = new ClassAssigner("normal", 22, nullAssigner);
+
+  new ClassInt<PlanePlot>(ca, "Frequency", this, &PlanePlot::frequency);
+  new ClassDouble<PlanePlot>(ca, "TimeInterval", this, &PlanePlot::frequency_dt);
+
+  new ClassDouble<PlanePlot>(ca, "X0", this, &PlanePlot::x0);
+  new ClassDouble<PlanePlot>(ca, "Y0", this, &PlanePlot::y0);
+  new ClassDouble<PlanePlot>(ca, "Z0", this, &PlanePlot::z0);
+  new ClassDouble<PlanePlot>(ca, "Normal_x", this, &PlanePlot::normal_x);
+  new ClassDouble<PlanePlot>(ca, "Normal_y", this, &PlanePlot::normal_y);
+  new ClassDouble<PlanePlot>(ca, "Normal_z", this, &PlanePlot::normal_z);
+
+  new ClassStr<PlanePlot>(ca, "Mesh", this, &PlanePlot::mesh);
+
+  new ClassStr<PlanePlot>(ca, "Density", this, &PlanePlot::density);
+  new ClassStr<PlanePlot>(ca, "Pressure", this, &PlanePlot::pressure);
+  new ClassStr<PlanePlot>(ca, "Temperature", this, &PlanePlot::temperature);
+  new ClassStr<PlanePlot>(ca, "DeltaTemperature", this, &PlanePlot::delta_temperature);
+  new ClassStr<PlanePlot>(ca, "Velocity", this, &PlanePlot::velocity);
+  new ClassStr<PlanePlot>(ca, "MaterialID", this, &PlanePlot::materialid);
+  new ClassStr<PlanePlot>(ca, "LaserRadiance", this, &PlanePlot::laser_radiance);
+  new ClassStr<PlanePlot>(ca, "LevelSet0", this, &PlanePlot::levelset0);
+  new ClassStr<PlanePlot>(ca, "LevelSet1", this, &PlanePlot::levelset1);
+  new ClassStr<PlanePlot>(ca, "LevelSet2", this, &PlanePlot::levelset2);
+  new ClassStr<PlanePlot>(ca, "LevelSet3", this, &PlanePlot::levelset3);
+  new ClassStr<PlanePlot>(ca, "LevelSet4", this, &PlanePlot::levelset4);
+  new ClassStr<PlanePlot>(ca, "IonizationResult", this, &PlanePlot::ionization_result);
+
+  return ca;
+
+}
+
+//------------------------------------------------------------------------------
+
 
 EmbeddedSurfaceData::EmbeddedSurfaceData()
 {
@@ -2731,6 +2835,43 @@ void AerosCouplingData::setup(const char *name, ClassAssigner *father)
 
 //------------------------------------------------------------------------------
 
+AerofCouplingData::AerofCouplingData()
+{
+  type = NONE;
+}
+
+//------------------------------------------------------------------------------
+
+void AerofCouplingData::setup(const char *name, ClassAssigner *father)
+{
+  ClassAssigner *ca = new ClassAssigner(name, 1, father);
+
+  new ClassToken<AerofCouplingData> (ca, "Type", this,
+     reinterpret_cast<int AerofCouplingData::*>(&AerofCouplingData::type), 2,
+     "None", 0, "OversetGrids", 1);
+}
+
+//------------------------------------------------------------------------------
+
+M2CTwinningData::M2CTwinningData()
+{
+  type = NONE;
+}
+
+//------------------------------------------------------------------------------
+
+void M2CTwinningData::setup(const char *name, ClassAssigner *father)
+{
+  ClassAssigner *ca = new ClassAssigner(name, 1, father);
+
+  new ClassToken<M2CTwinningData> (ca, "Type", this,
+     reinterpret_cast<int M2CTwinningData::*>(&M2CTwinningData::type), 2,
+     "None", 0, "OversetGrids", 1);
+}
+
+//------------------------------------------------------------------------------
+
+
 ConcurrentProgramsData::ConcurrentProgramsData()
 {
 
@@ -2740,8 +2881,11 @@ ConcurrentProgramsData::ConcurrentProgramsData()
 
 void ConcurrentProgramsData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 1, father);
+  //ClassAssigner *ca = new ClassAssigner(name, 3, father);
+  new ClassAssigner(name, 3, father);
   aeros.setup("AeroS");
+  aerof.setup("AeroF");
+  m2c_twin.setup("M2CTwin");
 } 
 
 //------------------------------------------------------------------------------
@@ -2979,6 +3123,13 @@ void IoData::finalize()
   //READ ADDITIONAL FILES
   if(strcmp(ic.user_specified_ic, ""))
     ic.readUserSpecifiedIC(); 
+
+  //assign default initial state to farfield/inlet b.c. if user did not specify a
+  //default (TODO: This logic would fail if user-specified default i.c. is exactly the same
+  //as the default StateVariable(). But this is highly unlikely...)
+  if(ic.default_ic == StateVariable() &&
+     !(bc.inlet == ic.default_ic))
+    ic.default_ic = bc.inlet;
 
   //FIX Levelset output (TODO: need a better way...)
   output.levelset[0] = output.levelset0;

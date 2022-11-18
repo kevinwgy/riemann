@@ -34,12 +34,12 @@ int main(int argc, char* argv[])
   //! Initialize VarFcn (EOS, etc.) 
 
   std::vector<VarFcnBase *> vf;
-  for(int i=0; i<iod.eqs.materials.dataMap.size(); i++)
+  for(int i=0; i<(int)iod.eqs.materials.dataMap.size(); i++)
     vf.push_back(NULL); //allocate memory for the VarFcn pointers
 
   for(auto it = iod.eqs.materials.dataMap.begin(); it != iod.eqs.materials.dataMap.end(); it++) {
     int matid = it->first;
-    if(matid < 0 || matid >= vf.size()) {
+    if(matid < 0 || matid >= (int)vf.size()) {
       print_error("*** Error: Detected error in the specification of material indices (id = %d).\n", matid);
       exit_mpi();
     }
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
   print("Total Computation Time: %f sec.\n", ((double)(clock()-start_time))/CLOCKS_PER_SEC);
   print("\n");
 
-  for(int i=0; i<vf.size(); i++)
+  for(int i=0; i<(int)vf.size(); i++)
     delete vf[i];
 
   return 0;

@@ -1203,7 +1203,7 @@ ExactRiemannSolverBase::ComputeRhoUStar(int wavenumber /*1 or 3*/,
 	    ps_0 = integrationPath[index0][0];
 	    rhos_0 = integrationPath[index0][1];
 	    us_0 = integrationPath[index0][2];
-	    if (index0 != integrationPath.size()-1) { // new starting point is not the last on the trajectory
+	    if (index0 != (int)integrationPath.size()-1) { // new starting point is not the last on the trajectory
               dp = ps_0-ps; 
             } else { // dp from the last step 
               dp = std::min( integrationPath[index0-1][0]-integrationPath[index0][0], ps_0-ps );
@@ -1756,7 +1756,7 @@ ExactRiemannSolverBase::Rarefaction_OneStepRK4(int wavenumber/*1 or 3*/, int id,
     return false;
   } 
 
-  double c_1 = sqrt(c_1_square);
+  //double c_1 = sqrt(c_1_square); //unused
                              
   double rho_2 = rho_0 + 3./40.*dp/c_0_square + 9./40.*dp/c_1_square;
   double p_2 = p_1 + 3./10.*dp;

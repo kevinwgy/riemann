@@ -45,13 +45,14 @@ template <class T>
 void
 ClassToken<T>::assignToken(int t)
 {
-  for(int i = 0; i < tk.size(); ++i)
+  for(int i = 0; i < (int)tk.size(); ++i)
     if(tk[i] == t) {
       ptr->*token = val[i];
       return;
     }
   fprintf(stderr, "ERROR: Token not understood: %s\n", 
 		  dictionary->word(t).c_str());
+  exit(-1);
 }
 
 template <class T>

@@ -53,6 +53,19 @@ struct StateVariable {
 
   void setup(const char *, ClassAssigner * = 0);
 
+  StateVariable &operator=(const StateVariable& s2) {
+    materialid = s2.materialid;  density = s2.density;  velocity_x = s2.velocity_x;
+    velocity_y = s2.velocity_y;  velocity_z = s2.velocity_z;  pressure = s2.pressure;
+    temperature = s2.temperature;  internal_energy_per_mass = s2.internal_energy_per_mass;
+    return *this;}
+
+  bool operator==(const StateVariable& s2) {
+    if(materialid != s2.materialid || density != s2.density || velocity_x != s2.velocity_x ||
+       velocity_y != s2.velocity_y || velocity_z != s2.velocity_z || pressure != s2.pressure ||
+       temperature != s2.temperature || internal_energy_per_mass != s2.internal_energy_per_mass)
+      return false;
+    else
+      return true;}
 };
 
 //------------------------------------------------------------------------------
@@ -147,6 +160,21 @@ struct CylinderSphereData {
 
 //------------------------------------------------------------------------------
 
+struct UserSpecifiedEnclosureData {
+
+  const char *surface_filename; //!< surface mesh that contains one or multiple enclosures
+  double surface_thickness; //!< artificial thickness of the surface
+
+  StateVariable initialConditions;
+
+  UserSpecifiedEnclosureData();
+  ~UserSpecifiedEnclosureData() {} 
+  Assigner *getAssigner();
+
+};
+
+//------------------------------------------------------------------------------
+
 struct MultiInitialConditionsData {
 
   ObjectMap<PointData>    pointMap;
@@ -155,6 +183,8 @@ struct MultiInitialConditionsData {
   ObjectMap<SpheroidData> spheroidMap;
   ObjectMap<CylinderConeData> cylinderconeMap;
   ObjectMap<CylinderSphereData> cylindersphereMap;
+
+  ObjectMap<UserSpecifiedEnclosureData> enclosureMap;
 
   void setup(const char *, ClassAssigner * = 0);
 };
@@ -185,7 +215,8 @@ struct MeshData {
   ObjectMap<MeshResolution1DPointData>  ypoints_map;
   ObjectMap<MeshResolution1DPointData>  zpoints_map;
 
-  enum BcType {NONE = 0, INLET = 1, OUTLET = 2, SLIPWALL = 3, STICKWALL = 4, SYMMETRY = 5, SIZE = 6};
+  enum BcType {NONE = 0, INLET = 1, OUTLET = 2, SLIPWALL = 3, STICKWALL = 4, SYMMETRY = 5, 
+               OVERSET = 6, SIZE = 7};
   BcType bc_x0, bc_xmax, bc_y0, bc_ymax, bc_z0, bc_zmax;
 
   MeshData();
@@ -643,7 +674,7 @@ struct ExactRiemannSolverData {
 
 struct MultiPhaseData {
 
-  enum Flux {EXACT = 0, NUMERICAL = 1} flux;
+  enum Flux {EXACT = 0, NUMERICAL = 1, LOCAL_LAX_FRIEDRICHS = 2} flux;
 
   enum ReconstructionAtInterface {CONSTANT = 0, LINEAR = 1} recon;
 
@@ -779,6 +810,8 @@ struct BcsData {
 //------------------------------------------------------------------------------
 
 struct IcData {
+
+  StateVariable default_ic;
 
   //-----------------------------------------------------------------------
   //! initial condition specified using simple geometric entities (e.g., point, plane,)
@@ -1022,6 +1055,43 @@ struct LinePlot {
 
 //------------------------------------------------------------------------------
 
+struct PlanePlot {
+
+  enum Vars  {DENSITY = 0, VELOCITY = 1, PRESSURE = 2, TEMPERATURE = 3, 
+              DELTA_TEMPERATURE = 4, MATERIALID = 5, LASERRADIANCE = 6, LEVELSET0 = 7, LEVELSET1 = 8, 
+              LEVELSET2 = 9, LEVELSET3 = 10, LEVELSET4 = 11, IONIZATION = 12, SIZE = 13};
+
+  const char *mesh;
+
+  const char *density;
+  const char *velocity;
+  const char *pressure;
+  const char *temperature;
+  const char *delta_temperature;
+  const char *materialid;
+  const char *laser_radiance;
+  const char *levelset0;
+  const char *levelset1;
+  const char *levelset2;
+  const char *levelset3;
+  const char *levelset4;
+  const char *ionization_result;
+
+  double x0,y0,z0;
+  double normal_x, normal_y, normal_z;
+
+  int frequency;
+  double frequency_dt;
+
+  PlanePlot();
+  ~PlanePlot() {}
+
+  Assigner *getAssigner();
+};
+
+//------------------------------------------------------------------------------
+
+
 struct MaterialVolumes {
 
   const char *filename;
@@ -1110,6 +1180,8 @@ struct OutputData {
   Probes probes;
 
   ObjectMap<LinePlot> linePlots;
+
+  ObjectMap<PlanePlot> planePlots;
 
   MaterialVolumes materialVolumes;
 
@@ -1234,9 +1306,39 @@ struct AerosCouplingData {
 
 //------------------------------------------------------------------------------
 
+struct AerofCouplingData {
+
+  enum Type {NONE = 0, OVERSET_GRIDS = 1} type;
+
+  AerofCouplingData();
+  ~AerofCouplingData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
+struct M2CTwinningData {
+
+  enum Type {NONE = 0, OVERSET_GRIDS = 1} type;
+
+  M2CTwinningData();
+  ~M2CTwinningData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+
+};
+
+//------------------------------------------------------------------------------
+
 struct ConcurrentProgramsData {
 
   AerosCouplingData aeros;
+
+  AerofCouplingData aerof;
+
+  M2CTwinningData m2c_twin;
 
   ConcurrentProgramsData();
   ~ConcurrentProgramsData() {} 
