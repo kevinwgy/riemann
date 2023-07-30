@@ -46,6 +46,7 @@ add_executable(riemann
 Main.cpp
 IoData.cpp
 ExactRiemannSolverBase.cpp
+MathTools/polynomial_equations.cpp
 Utils.cpp)
 
 # link to libraries

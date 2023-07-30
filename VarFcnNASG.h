@@ -10,8 +10,8 @@
 #include <fstream>
 
 /********************************************************************************
- * This class is the VarFcn class for the Noble-Abel Stiffened Gas EOS in Euler
- * Equations. Only elementary functions are declared and/or defined here.
+ * This class is the VarFcn class for the Noble-Abel Stiffened Gas equation of
+ * state (EOS). Only elementary functions are declared and/or defined here.
  * All arguments must be pertinent to only a single grid node or a single
  * state.
  *
@@ -56,7 +56,7 @@ public:
   inline double GetInternalEnergyPerUnitMass(double rho, double p) {return invgam1*(p+gam_pc)*(1.0/rho-b) + q;}
   inline double GetDensity(double p, double e) {return 1.0/(gam1*(e-q)/(p+gam_pc) + b);}
   inline double GetDpdrho(double rho, double e) {double V = 1.0/rho; return gam1*V*V*(e-q)/((V-b)*(V-b));}
-  inline double GetBigGamma(double rho, double e) {return gam1/(1.0 - b*rho);}
+  inline double GetBigGamma(double rho, [[maybe_unused]] double e) {return gam1/(1.0 - b*rho);}
 
   inline double GetTemperature(double rho, double e) {return invcv*(e - q - pc*(1.0/rho - b));}
 
@@ -73,7 +73,7 @@ public:
   inline bool CheckState(double rho, double p, bool silence = false) {
     if(!std::isfinite(rho) || !std::isfinite(p)) {
       if(!silence)
-        fprintf(stderr, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
+        fprintf(stdout, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
       return true;
     }
     if(rho <= 0.0 || p+pc <= 0.0){ //if p+pc<=0, c^2<=0
@@ -88,11 +88,11 @@ public:
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-inline
+
 VarFcnNASG::VarFcnNASG(MaterialModelData &data) : VarFcnBase(data) {
 
   if(data.eos != MaterialModelData::NOBLE_ABEL_STIFFENED_GAS){
-    fprintf(stderr, "*** Error: MaterialModelData is not of type NOBLE_ABEL_STIFFENED_GAS.\n");
+    fprintf(stdout, "*** Error: MaterialModelData is not of type NOBLE_ABEL_STIFFENED_GAS.\n");
     exit(-1);
   }
 

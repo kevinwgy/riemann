@@ -10,8 +10,8 @@
 #include <fstream>
 
 /********************************************************************************
- * This class is the VarFcn class for the Stiffened Gas EOS in Euler
- * Equations. Only elementary functions are declared and/or defined here.
+ * This class is the VarFcn class for the Stiffened Gas equation of state (EOS)
+ * Only elementary functions are declared and/or defined here.
  * All arguments must be pertinent to only a single grid node or a single
  * state.
  *
@@ -64,8 +64,8 @@ public:
   inline double GetPressure(double rho, double e) {return gam1*rho*e - gam*Pstiff;}
   inline double GetInternalEnergyPerUnitMass(double rho, double p) {return (p+gam*Pstiff)/(gam1*rho);}
   inline double GetDensity(double p, double e) {return (p+gam*Pstiff)/(gam1*e);}
-  inline double GetDpdrho(double rho, double e) {return gam1*e;}
-  inline double GetBigGamma(double rho, double e) {return gam1;}
+  inline double GetDpdrho([[maybe_unused]] double rho, double e) {return gam1*e;}
+  inline double GetBigGamma([[maybe_unused]] double rho, [[maybe_unused]] double e) {return gam1;}
 
   inline double GetTemperature(double rho, double e) {
     if(use_cv_advanced) { //Method 3
@@ -96,7 +96,7 @@ public:
   inline bool CheckState(double rho, double p, bool silence = false) {
     if(!std::isfinite(rho) || !std::isfinite(p)) {
       if(!silence)
-        fprintf(stderr, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
+        fprintf(stdout, "*** Error: CheckState failed. rho = %e, p = %e.\n", rho, p);
       return true;
     }
     if(rho <= 0.0 || p+Pstiff <= 0.0){
@@ -111,11 +111,11 @@ public:
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-inline
+
 VarFcnSG::VarFcnSG(MaterialModelData &data) : VarFcnBase(data) {
 
   if(data.eos != MaterialModelData::STIFFENED_GAS){
-    fprintf(stderr, "*** Error: MaterialModelData is not of type STIFFENED_GAS.\n");
+    fprintf(stdout, "*** Error: MaterialModelData is not of type STIFFENED_GAS.\n");
     exit(-1);
   }
 
