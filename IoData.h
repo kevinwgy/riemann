@@ -81,7 +81,7 @@ struct PointData {
 
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -99,7 +99,7 @@ struct PlaneData {
 
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -122,7 +122,7 @@ struct ParallelepipedData {
   enum InteriorOrExterior {INTERIOR = 0, EXTERIOR = 1} side;
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -141,7 +141,7 @@ struct SphereData {
   enum InteriorOrExterior {INTERIOR = 0, EXTERIOR = 1} side;
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -163,7 +163,7 @@ struct SpheroidData {
   enum InteriorOrExterior {INTERIOR = 0, EXTERIOR = 1} side;
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -185,7 +185,7 @@ struct CylinderConeData {
   enum InteriorOrExterior {INTERIOR = 0, EXTERIOR = 1} side;
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
  
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -208,7 +208,7 @@ struct CylinderSphereData {
   enum InteriorOrExterior {INTERIOR = 0, EXTERIOR = 1} side;
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -227,7 +227,7 @@ struct UserSpecifiedEnclosureData {
 
   enum Inclusion {OVERRIDE = 0, INTERSECTION = 1, UNION = 2} inclusion;
 
-  int order; //!< set operation order (0, 1, ...). Currently NOT used in M2C (but used in A2C).
+  int order; //!< set operation order (0, 1, ...). 
 
   StateVariable initialConditions;
 
@@ -762,6 +762,10 @@ struct LevelSetSchemeData {
   enum BcType {NONE = 0, ZERO_NEUMANN = 1, LINEAR_EXTRAPOLATION = 2, NON_NEGATIVE = 3, SIZE = 4};
   BcType bc_x0, bc_xmax, bc_y0, bc_ymax, bc_z0, bc_zmax;
   
+  //! Initialization of Phi: by distance calculation (accurate, but not robust for complex geometries), \n
+  //! or by the solution of the reinitialization function (may be less accurate, but more robust).
+  enum InitializationMethod {DISTANCE_CALCULATION = 0, REINITIALIZATION = 1} init;
+
 
   int bandwidth; //!< number of layers of nodes on each side of interface
 
@@ -804,13 +808,22 @@ struct ExactRiemannSolverData {
   double tol_shock;
   double tol_rarefaction;
 
-  double min_pressure; //this is to guide the finding of bracketing interval (set it to
-                       //be a low (maybe negative) pressure that is *clearly* out of bound
+  double min_pressure; //!< this is to guide the finding of bracketing interval (set it to
+                       //!< be a low (maybe negative) pressure that is *clearly* out of bound
 
-  double failure_threshold; //when to apply a fixed pressure (at failure)
-  double pressure_at_failure; //this is a fixed pressure to be specified as ps when the solver fails to
-                              //find a bracketing interval and the best approximation obtained is poor.
-                              //this is the last resort. Usually it can be set to a very low but physical pressure
+  double failure_threshold; //!< when to apply a fixed pressure (at failure)
+  double pressure_at_failure; //!< this is a fixed pressure to be specified as ps when the solver fails to
+                              //!< find a bracketing interval and the best approximation obtained is poor.
+                              //!< this is the last resort. Usually it can be set to a very low but physical pressure
+
+
+  // ---------------------------------------------------------------------------------------------
+  //! Experimental (Wentao): Extended Exact Riemann solver w/ pressure jump due to surface tension
+  enum YesNo {NO = 0, YES = 1} surface_tension; //!< whether surface tension is modeled
+  double surface_tension_coefficient; //!< used when surface tension is considered
+  int surface_tension_materialid; //!< the material that pressure jump is *added* to
+  // ---------------------------------------------------------------------------------------------
+
 
   ExactRiemannSolverData();
   ~ExactRiemannSolverData() {}
@@ -962,6 +975,25 @@ struct BcsData {
 };
 
 //------------------------------------------------------------------------------
+//! Fill the domain with a certain material from a source point, up to a "waterline". Pressure varied linearly.
+//! Useful for simulations involving floating vehicles/structures and those that gravity needs to be specified
+struct FloodIcData {
+
+  double source_x, source_y, source_z; //!< "water" source: any point underwater
+  double waterline_x, waterline_y, waterline_z; //!< a point on the waterline
+  double gx, gy, gz; //!< gravitational acceleration 
+
+  //! Note: "source" is needed. Filling everywhere under "waterline" would also flood the ship...
+
+  StateVariable waterline_ic;
+
+  FloodIcData();
+  ~FloodIcData() {}
+
+  void setup(const char *, ClassAssigner * = 0);
+};
+
+//------------------------------------------------------------------------------
 
 struct IcData {
 
@@ -997,6 +1029,11 @@ struct IcData {
   std::vector<double> user_data[SIZE];
 
   std::vector<double> user_data2[SIZE]; //!< for radial variation 
+  //-----------------------------------------------------------------------
+
+  //-----------------------------------------------------------------------
+  //! initial condition specified through "flooding".
+  FloodIcData floodIc;
   //-----------------------------------------------------------------------
 
   IcData();

@@ -1459,6 +1459,7 @@ LevelSetSchemeData::LevelSetSchemeData()
 
   delta = 0.2; //the coefficient in Harten's entropy fix.
 
+  init = DISTANCE_CALCULATION;
 }
 
 //------------------------------------------------------------------------------
@@ -1466,7 +1467,7 @@ LevelSetSchemeData::LevelSetSchemeData()
 Assigner *LevelSetSchemeData::getAssigner()
 {
 
-  ClassAssigner *ca = new ClassAssigner("normal", 13, nullAssigner);
+  ClassAssigner *ca = new ClassAssigner("normal", 14, nullAssigner);
 
   new ClassInt<LevelSetSchemeData>(ca, "MaterialID", this, 
     &LevelSetSchemeData::materialid);
@@ -1503,6 +1504,10 @@ Assigner *LevelSetSchemeData::getAssigner()
   new ClassToken<LevelSetSchemeData>(ca, "BoundaryConditionZmax", this,
           reinterpret_cast<int LevelSetSchemeData::*>(&LevelSetSchemeData::bc_zmax), 4,
           "None", 0, "ZeroNeumann", 1, "LinearExtrapolation", 2, "NonNegative", 3);
+
+  new ClassToken<LevelSetSchemeData>(ca, "Initialization", this,
+          reinterpret_cast<int LevelSetSchemeData::*>(&LevelSetSchemeData::init), 2,
+          "DistanceCalculation", 0, "Reinitialization", 1);
 
   rec.setup("Reconstruction", ca);
 
@@ -1553,6 +1558,11 @@ ExactRiemannSolverData::ExactRiemannSolverData()
   min_pressure = -1.0e8;
   failure_threshold = 0.2;
   pressure_at_failure = 1.0e-8;
+
+  // Experimental
+  surface_tension = NO;
+  surface_tension_coefficient = 0.;
+  surface_tension_materialid = 1;
 }
 
 //------------------------------------------------------------------------------
@@ -1560,7 +1570,7 @@ ExactRiemannSolverData::ExactRiemannSolverData()
 void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
 {
 
-  ClassAssigner *ca = new ClassAssigner(name, 10, father);
+  ClassAssigner *ca = new ClassAssigner(name, 13, father);
 
   new ClassInt<ExactRiemannSolverData>(ca, "MaxIts", this, 
                                        &ExactRiemannSolverData::maxIts_main);
@@ -1592,6 +1602,18 @@ void ExactRiemannSolverData::setup(const char *name, ClassAssigner *father)
   new ClassDouble<ExactRiemannSolverData>(ca, "PrescribedPressureUponFailure", this,
                                           &ExactRiemannSolverData::pressure_at_failure);
 
+  // Experimental 
+  
+  new ClassToken<ExactRiemannSolverData>(ca, "SurfaceTension", this,
+                                         reinterpret_cast<int ExactRiemannSolverData::*>
+                                         (&ExactRiemannSolverData::surface_tension), 2,
+                                         "No", 0, "Yes", 1);
+
+  new ClassDouble<ExactRiemannSolverData>(ca, "SurfaceTensionCoefficient", this,
+                                          &ExactRiemannSolverData::surface_tension_coefficient);
+
+  new ClassInt<ExactRiemannSolverData>(ca, "SurfaceTensionMaterialID", this,
+                                       &ExactRiemannSolverData::surface_tension_materialid);
 }
 
 //------------------------------------------------------------------------------
@@ -1861,6 +1883,44 @@ void BcsWallData::setup(const char *name, ClassAssigner *father)
 
 //------------------------------------------------------------------------------
 
+FloodIcData::FloodIcData()
+{
+  source_x = DBL_MAX; //DBL_MAX means the user did not specify it.
+  source_y = DBL_MAX;
+  source_z = DBL_MAX;
+
+  waterline_x = 0.0;
+  waterline_y = 0.0;
+  waterline_z = 0.0;
+
+  gx = 0.0;
+  gy = 0.0;
+  gz = 0.0;
+}
+
+//------------------------------------------------------------------------------
+
+void FloodIcData::setup(const char *name, ClassAssigner *father)
+{
+  ClassAssigner *ca = new ClassAssigner(name, 10, father);
+
+  new ClassDouble<FloodIcData>(ca, "Source_x", this, &FloodIcData::source_x);
+  new ClassDouble<FloodIcData>(ca, "Source_y", this, &FloodIcData::source_y);
+  new ClassDouble<FloodIcData>(ca, "Source_z", this, &FloodIcData::source_z);
+
+  new ClassDouble<FloodIcData>(ca, "Waterline_x", this, &FloodIcData::waterline_x);
+  new ClassDouble<FloodIcData>(ca, "Waterline_y", this, &FloodIcData::waterline_y);
+  new ClassDouble<FloodIcData>(ca, "Waterline_z", this, &FloodIcData::waterline_z);
+
+  new ClassDouble<FloodIcData>(ca, "Gravity_x", this, &FloodIcData::gx);
+  new ClassDouble<FloodIcData>(ca, "Gravity_y", this, &FloodIcData::gy);
+  new ClassDouble<FloodIcData>(ca, "Gravity_z", this, &FloodIcData::gz);
+
+  waterline_ic.setup("InitialState");
+}
+
+//------------------------------------------------------------------------------
+
 IcData::IcData()
 {
   user_specified_ic = "";
@@ -1879,12 +1939,12 @@ IcData::IcData()
 
 void IcData::setup(const char *name, ClassAssigner *father)
 {
-  ClassAssigner *ca = new ClassAssigner(name, 5, father);
+  ClassAssigner *ca = new ClassAssigner(name, 6, father);
 
   new ClassStr<IcData>(ca, "UserDataFile", this, &IcData::user_specified_ic);
 
   new ClassToken<IcData> (ca, "ApplyUserDataBeforeGeometricEntities", this,
-        reinterpret_cast<int IcData::*>(&IcData::apply_user_file_before_geometries), 2, 
+        reinterpret_cast<int IcData::*>(&IcData::apply_user_file_before_geometries), 2,
         "No", 0, "Yes", 1);
 
   new ClassToken<IcData> (ca, "InterpolationFunction", this,
@@ -1894,6 +1954,9 @@ void IcData::setup(const char *name, ClassAssigner *father)
   default_ic.setup("DefaultInitialState");
 
   multiInitialConditions.setup("GeometricEntities");
+
+  floodIc.setup("Flood");
+
 }
 
 //------------------------------------------------------------------------------
@@ -3535,6 +3598,16 @@ void IoData::finalize()
   if(ic.default_ic == StateVariable() &&
      !(bc.inlet == ic.default_ic))
     ic.default_ic = bc.inlet;
+
+  //Set dummy_state (except material id)
+  if(fabs(eqs.dummy_state.density-1.0e-6)<1e-12 &&
+     eqs.dummy_state.velocity_x == 0.0 && eqs.dummy_state.velocity_y == 0.0 &&
+     eqs.dummy_state.velocity_z == 0.0 && eqs.dummy_state.pressure   == 0.0 &&
+     eqs.dummy_state.temperature == 0.0 && 
+     eqs.dummy_state.internal_energy_per_mass == 0.0) {//user did not specify dummy_state
+    eqs.dummy_state = ic.default_ic;
+    eqs.dummy_state.materialid = 0; //Not dummy_state's materialid. Shouldn't be used
+  }
 
   //FIX Levelset output (TODO: need a better way...)
   output.levelset[0] = output.levelset0;
